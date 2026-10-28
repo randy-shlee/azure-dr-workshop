@@ -7,9 +7,10 @@ ARM 템플릿·runbook·Linux/amd64 이미지 아카이브를 사용합니다.
 먼저 워크숍의 비용·권한·공개 네트워크 예외를 검토하세요. 버튼을 누르는 것만으로는
 배포되지 않으며 **Review + create → Create** 승인 시 과금 리소스가 생성됩니다.
 
-고객 실습은 [단계별 워크숍](workshop/README.md)을 사용하세요.
-[간소화 가이드 검토안](WORKSHOP_SIMPLE_PROPOSAL.md)은 승인 대기이며,
-새 `Workshop_simple` 문서는 아직 작성하지 않았습니다.
+고객 실습은 [간단 워크숍](Workshop_simple/README.md)을 먼저 사용하세요.
+포털/앱 버튼과 짧은 전환 명령으로 진행하며 [강사용 준비](Workshop_simple/instructor.md)는 분리했습니다.
+코드·수동 복구는 기존 [고급 워크숍](workshop/README.md)을 사용합니다.
+[간소화 구성안](WORKSHOP_SIMPLE_PROPOSAL.md)은 2026-10-28 승인 후 반영했습니다.
 강사 로컬 이미지 build/save·GitHub Release 준비, Deploy to Azure와 양 AKS 자동 배포,
 브라우저 테스트, DR 전환·원복, 비용 정리와 강사 가이드를 별도 폴더에 제공합니다.
 

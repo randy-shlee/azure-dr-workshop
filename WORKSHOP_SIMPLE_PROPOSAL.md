@@ -1,7 +1,7 @@
 # Azure DR workshop - 간소화 가이드 검토안
 
-상태: 사용자 검토 대기. 이 문서는 구성 제안이며 `Workshop_simple` 폴더와 새 Lab은
-아직 만들지 않습니다. 기존 `workshop`은 고급/참고용으로 유지합니다.
+상태: 2026-10-28 사용자 승인, [Workshop_simple](Workshop_simple/README.md)에 반영.
+기존 `workshop`은 고급/참고용으로 유지합니다. 아래는 승인된 구성의 기록입니다.
 
 ## 1. 변경 범위
 
@@ -147,7 +147,7 @@ Workshop_simple\
 명령을 전혀 실행하지 않는 관찰형 진행도 가능하지만, Traffic Manager 클릭만으로
 전체 backend DR를 수행했다고 설명하지 않습니다.
 
-이 구성 승인을 받은 뒤에만 `Workshop_simple` 폴더와 새 가이드를 작성합니다.
+2026-10-28 이 구성이 승인되어 `Workshop_simple` 폴더와 새 가이드를 작성했습니다.
 
 참고:
 [Traffic Manager endpoint 활성화/비활성화](https://learn.microsoft.com/azure/traffic-manager/traffic-manager-endpoint-types#enabling-and-disabling-endpoints).
