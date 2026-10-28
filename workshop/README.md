@@ -103,6 +103,16 @@
 
 ## 자료 검증 범위
 
+- 2026-10-28 공개 릴리스 `v1.0.2`에서 네 assets의 익명 다운로드와
+  이미지/runbook/ARM JSON의 SHA256을 확인했습니다. 태그 고정 raw JSON도
+  Release JSON과 바이트가 같고 CORS `*` 응답을 제공합니다.
+- 로그인한 Azure 포털에서 `v1.0.2` 버튼으로 subscription-scope 입력 화면,
+  샘플 `10GB`, bootstrap `true`, 같은 버전의 assets URL을 확인했습니다.
+  Review + create / Create는 실행하지 않았습니다.
+- 게시 준비 시 API 29개, 운영 회귀 40개, 부트스트랩 10개 검사가 통과했습니다.
+  별도 기존 `infra/tests/validate-template.ps1`은 현재 `union` 출력 구조와
+  맞지 않는 public-IP 단언에서 실패했으므로 통과로 집계하지 않습니다.
+  최신 API의 BCP081 경고와 실제 배포/연결/DR 미검증 범위도 남아 있습니다.
 - 운영 회귀 40개와 포털/릴리스/부트스트랩 검사 10개(compiled ARM 검사 포함)가 통과했습니다.
   Lab 04 복구 블록을 그대로 추출해
   두 리전 manifest/Secret 전달 및 임시 파일 정리를 모의 실행했습니다.
