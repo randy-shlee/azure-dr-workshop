@@ -76,6 +76,7 @@ if ((Get-Item -LiteralPath "$tar.gz").Length -ge 2GB) { throw 'Compressed image 
 Remove-Item -LiteralPath $tar
 $imageHash = (Get-FileHash "$tar.gz" -Algorithm SHA256).Hash.ToLowerInvariant()
 $releaseUri = "https://github.com/$Repository/releases/download/$ReleaseTag"
+$portalTemplateUri = "https://raw.githubusercontent.com/$Repository/$ReleaseTag/workshop/releases/azuredeploy.json"
 $bundle = New-SourceBundle $root
 $kubectlUri = 'https://dl.k8s.io/release/v1.36.0/bin/linux/amd64/kubectl'
 Invoke-WebRequest "$kubectlUri.sha256" -OutFile (Join-Path $stage 'kubectl.sha256') -TimeoutSec 60
@@ -103,13 +104,16 @@ $template | ConvertTo-Json -Depth 100 | Set-Content -LiteralPath $templatePath -
 $templateHash = (Get-FileHash $templatePath -Algorithm SHA256).Hash.ToLowerInvariant()
 @{
     repository = $Repository; releaseTag = $ReleaseTag; architecture = $architecture
-    templateUri = "$releaseUri/azuredeploy.json"; templateSha256 = $templateHash
+    templateUri = $portalTemplateUri; templateSha256 = $templateHash
     imageUri = "$releaseUri/app-image.tar.gz"; imageSha256 = $imageHash
     runbookUri = "$releaseUri/workshop-bootstrap.ps1"; runbookSha256 = $runbookHash
 } | ConvertTo-Json | Set-Content (Join-Path $stage 'release-manifest.json') -Encoding utf8NoBOM
-$button = "[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/$([Uri]::EscapeDataString("$releaseUri/azuredeploy.json")))"
+$button = "[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/$([Uri]::EscapeDataString($portalTemplateUri)))"
 $button | Set-Content (Join-Path $stage 'deploy-button.md') -Encoding utf8NoBOM
 if ($UpdateWorkshopButton) {
+    $portalFolder = Join-Path $root 'workshop\releases'
+    $null = New-Item -ItemType Directory -Force -Path $portalFolder
+    Copy-Item -LiteralPath $templatePath -Destination (Join-Path $portalFolder 'azuredeploy.json')
     $document = Join-Path $root 'workshop\labs\01-infrastructure.md'
     $text = [IO.File]::ReadAllText($document)
     if ($text -notmatch '(?s)<!-- DEPLOY_BUTTON_START -->.*?<!-- DEPLOY_BUTTON_END -->') { throw 'Workshop button markers not found.' }
@@ -117,4 +121,5 @@ if ($UpdateWorkshopButton) {
     [IO.File]::WriteAllText($document, [regex]::Replace($text, '(?s)<!-- DEPLOY_BUTTON_START -->.*?<!-- DEPLOY_BUTTON_END -->', [Text.RegularExpressions.MatchEvaluator]{ param($match) $replacement }), [Text.UTF8Encoding]::new($false))
 }
 Write-Host "Prepared: $stage"
+Write-Host 'Commit workshop/releases/azuredeploy.json and the button changes before creating the release tag. The portal uses the tag-pinned raw URL for CORS support.'
 Write-Host 'NOT PUBLISHED. Review artifacts, obtain publication approval, then upload the four release assets as documented. No Azure resource deployment was executed.'

@@ -230,7 +230,10 @@ Test 'real local packaging flow is mocked through build/save/compression/ARM/but
         Assert ($global:WorkshopTestDockerCalls[2].location -eq (Join-Path $root 'app')) 'Workspace sent instead of app-only context.'
         Assert (@($global:WorkshopTestDockerCalls | Where-Object { $_.args[0] -in @('push','login') }).Count -eq 0) 'Published without approval.'
         $button = Get-Content -Raw (Join-Path $stage 'deploy-button.md')
-        Assert ($button -match 'https%3A%2F%2Fgithub.com%2Ftest-org%2Ftest-repo') 'Template URI not encoded.'
+        $expectedTemplateUri = "https://raw.githubusercontent.com/test-org/test-repo/$version/workshop/releases/azuredeploy.json"
+        Assert ($manifest.templateUri -ceq $expectedTemplateUri) 'Portal template must use a tag-pinned CORS-enabled raw URL.'
+        Assert ($button.Contains([Uri]::EscapeDataString($expectedTemplateUri))) 'Template URI not encoded.'
+        Assert (-not $button.Contains('https%3A%2F%2Fgithub.com%2F')) 'Release download URL is not browser-CORS compatible.'
         $compiled = Get-Content -Raw (Join-Path $stage 'azuredeploy.json') | ConvertFrom-Json
         Assert ($compiled.parameters.appImageArchiveSha256.defaultValue -eq $manifest.imageSha256) 'Portal image hash mismatch.'
         $errors = $null; $tokens = $null

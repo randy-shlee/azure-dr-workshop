@@ -9,9 +9,9 @@
 ## 1-1. 포털에서 시작
 
 <!-- DEPLOY_BUTTON_START -->
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fgithub.com%2Frandy-shlee%2Fazure-dr-workshop%2Freleases%2Fdownload%2Fv1.0.0%2Fazuredeploy.json)
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Frandy-shlee%2Fazure-dr-workshop%2Fv1.0.1%2Fworkshop%2Freleases%2Fazuredeploy.json)
 
-Release: `randy-shlee/azure-dr-workshop@v1.0.0`. 게시된 공개 assets를 확인한 후 사용합니다.
+Release: `randy-shlee/azure-dr-workshop@v1.0.1`. 게시된 공개 assets를 확인한 후 사용합니다.
 <!-- DEPLOY_BUTTON_END -->
 
 [공식 버튼 규격](https://learn.microsoft.com/azure/azure-resource-manager/templates/deploy-to-azure-button)에

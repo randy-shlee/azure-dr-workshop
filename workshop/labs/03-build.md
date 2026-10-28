@@ -27,7 +27,7 @@ PAT, 만료되는 서명 URL은 지원하지 않습니다. 배포할 포털 JSON
 
 ```powershell
 pwsh -File .\scripts\package-workshop-release.ps1 `
-  -Repository 'YOUR-ORG/YOUR-REPO' -ReleaseTag 'v1.0.0' -UpdateWorkshopButton
+  -Repository 'YOUR-ORG/YOUR-REPO' -ReleaseTag 'v1.0.1' -UpdateWorkshopButton
 ```
 
 [패키저](../../scripts/package-workshop-release.ps1)는 다음을 수행합니다.
@@ -38,9 +38,12 @@ pwsh -File .\scripts\package-workshop-release.ps1 `
    `.state`, 암호, 전체 저장소, 이미지 파일은 이 ZIP에 포함하지 않음.
 4. 원본 [Bicep](../../infra/main.bicep)을 ARM JSON으로 빌드하고
    워크숍 10GiB/부트스트랩 true/Release URL/해시 기본값을 설정.
-5. `.state/releases/v1.0.0`에 파일 생성. 기존 디렉터리/동일 버전 덮어쓰기는 거절.
-6. `-UpdateWorkshopButton`이면 Lab 01의 버튼 영역을 실제 Release URL로 교체.
-   **게시 전에는 URL이 아직 열리지 않습니다.**
+5. `.state/releases/v1.0.1`에 파일 생성. 기존 디렉터리/동일 버전 덮어쓰기는 거절.
+6. `-UpdateWorkshopButton`이면 같은 JSON을 `workshop/releases/azuredeploy.json`에도
+   생성하고 Lab 01의 버튼을 **릴리스 태그로 고정한 raw.githubusercontent.com URL**로 교체.
+   GitHub Release 다운로드 주소는 포털 브라우저의 CORS 요청을 지원하지 않습니다.
+   생성된 JSON과 문서 변경을 commit/push한 뒤 그 commit에 새 릴리스 태그를 생성합니다.
+   **태그 게시 전에는 버튼 URL이 아직 열리지 않습니다.**
 
 게시할 네 assets:
 
@@ -64,7 +67,7 @@ what-if만으로 포털 프로필을 검증했다고 적지 않습니다.
 ```bash
 read -rs -p 'Test PostgreSQL password for what-if: ' PG_PASSWORD; echo
 export PG_PASSWORD
-export PORTAL_TEMPLATE="$ROOT_DIR/.state/releases/v1.0.0/azuredeploy.json"
+export PORTAL_TEMPLATE="$ROOT_DIR/.state/releases/v1.0.1/azuredeploy.json"
 (
   umask 077
   stage="$(mktemp -d "$STATE_DIR/portal-what-if.XXXXXX")"
@@ -88,13 +91,16 @@ NestedDeploymentShortCircuited는 상세 검증 생략이며 실제 성공 보�
 ## 3-3. 승인 후 GitHub에 게시 — 수동 승인 작업
 
 조직 승인 후 아래 **PowerShell** 명령으로 공개 저장소의 Release assets를 올립니다.
-이 자료 작성 과정에서는 업로드를 실행하지 않았습니다.
+초기 자료 작성 시 업로드는 실행하지 않았으며, 현재 게시 버전은 Lab 01에서 확인합니다.
 
 ```powershell
 $repo = 'YOUR-ORG/YOUR-REPO'
-$tag = 'v1.0.0'
+$tag = 'v1.0.1'
 $dir = Join-Path (Get-Location) ".state\releases\$tag"
-gh release create $tag --repo $repo --title "DR workshop $tag" `
+git add workshop/releases/azuredeploy.json workshop/labs/01-infrastructure.md
+git commit -m "Prepare workshop portal template $tag"
+git push origin HEAD
+gh release create $tag --repo $repo --target (git rev-parse HEAD) --title 'Azure DR workshop' `
   "$dir\app-image.tar.gz" "$dir\workshop-bootstrap.ps1" `
   "$dir\azuredeploy.json" "$dir\release-manifest.json"
 ```
@@ -103,7 +109,8 @@ GitHub Release asset당 용량 제한(현재 2GiB)을 넘으면 중단합니다.
 분할하거나 repo에 commit하지 않습니다. 원본 앱만 패키징한 이미지 크기를 확인하세요.
 현재 도구는 분할/외부 레지스트리 원본을 지원하지 않습니다.
 
-익명 브라우저에서 네 URL이 열리는지와 manifest 해시를 확인한 후,
+익명 브라우저에서 네 URL과 manifest의 raw `templateUri`가 열리는지,
+두 JSON의 SHA256이 같은지와 raw 응답의 CORS 헤더를 확인한 후,
 Lab 01 버튼이 포털의 올바른 subscription template을 여는지 검증합니다.
 버전/tag/assets를 덮어쓰지 마세요. 이미지와 runbook 해시가 달라지면 배포를 실패시킵니다.
 runbook은 인프라를 관리할 수 있는 코드이므로 검토한 강사의 릴리스만 신뢰합니다.
