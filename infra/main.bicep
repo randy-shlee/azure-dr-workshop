@@ -9,6 +9,7 @@ param owner string
 param expiry string
 @minValue(1)
 param monthlyBudget int = 1000
+param deployBudget bool = true
 param budgetStartDate string = '${utcNow('yyyy-MM')}-01T00:00:00Z'
 param allowedClientCidrs array = ['203.0.113.10/32']
 
@@ -63,7 +64,7 @@ param bootstrapRunId string = utcNow()
 
 var primaryLocation = 'koreacentral'
 var secondaryLocation = 'koreasouth'
-var tags = { purpose: 'dr-test', owner: owner, expiry: expiry }
+var tags = union({ purpose: 'dr-test', expiry: expiry }, empty(owner) ? {} : { owner: owner })
 resource krc 'Microsoft.Resources/resourceGroups@2023-07-01' = {
   name: 'rg-${prefix}-krc'
   location: primaryLocation
@@ -83,7 +84,7 @@ resource global 'Microsoft.Resources/resourceGroups@2023-07-01' = {
 // Budgets are subscription-scoped, not children of the global resource group,
 // and the API does not support tags. Filters cover exactly the three owned RGs
 // plus the two AKS-managed node RGs (automatically removed with their clusters).
-resource budget 'Microsoft.Consumption/budgets@2026-06-01' = {
+resource budget 'Microsoft.Consumption/budgets@2026-06-01' = if (deployBudget) {
   name: '${prefix}-drtest-budget'
   properties: {
     amount: monthlyBudget
@@ -403,8 +404,8 @@ var environmentConfig = {
   aksVmSize: aksVmSize
   aksNodeCount: aksNodeCount
   postgresVmSize: postgresVmSize
-  budget: monthlyBudget
-  budgetName: budget.name
+  budget: deployBudget ? monthlyBudget : 0
+  budgetName: deployBudget ? budget!.name : ''
   workspaceId: logs.outputs.id
   primary: {
     region: 'krc'

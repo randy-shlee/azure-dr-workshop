@@ -9,9 +9,9 @@
 ## 1-1. 포털에서 시작
 
 <!-- DEPLOY_BUTTON_START -->
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Frandy-shlee%2Fazure-dr-workshop%2Fv1.0.2%2Fworkshop%2Freleases%2Fazuredeploy.json)
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Frandy-shlee%2Fazure-dr-workshop%2Fv1.0.3%2Fworkshop%2Freleases%2Fazuredeploy.json)
 
-Release: `randy-shlee/azure-dr-workshop@v1.0.2`. 게시된 공개 assets를 확인한 후 사용합니다.
+Release: `randy-shlee/azure-dr-workshop@v1.0.3`. 게시된 공개 assets를 확인한 후 사용합니다.
 <!-- DEPLOY_BUTTON_END -->
 
 [공식 버튼 규격](https://learn.microsoft.com/azure/azure-resource-manager/templates/deploy-to-azure-button)에
@@ -29,8 +29,7 @@ Release: `randy-shlee/azure-dr-workshop@v1.0.2`. 게시된 공개 assets를 확�
 | Subscription | 승인된 테스트 구독. Owner 또는 동등한 배포·역할 정의/할당 권한 필요 |
 | Deployment location | `Korea Central` |
 | prefix | 팀별 3~12자 소문자/숫자 권장. 전환 중 기존 환경에 재배포하지 않음 |
-| owner / expiry | 실제 예산 수신 이메일 / ISO 날짜. 자동 삭제 기능이 아님 |
-| monthlyBudget | 승인된 월 예산. 과금 차단 상한이 아님 |
+| expiry | ISO 날짜. 자동 삭제 기능이 아님 |
 | allowedClientCidrs | 테스트 브라우저의 공인 IPv4 CIDR 배열. 예: `["203.0.113.10/32"]`는 설명용이며 실제 IP로 교체 |
 | administratorLogin / administratorPassword | 테스트 PG 관리자. 암호는 secure 입력이며 outputs/릴리스에 포함되지 않음 |
 | deployWorkshopBootstrap | 게시된 워크숍 JSON 기본 `true`. Automation 계정 하나의 공용 네트워크 예외에 동의할 때만 사용 |
@@ -41,6 +40,9 @@ Release: `randy-shlee/azure-dr-workshop@v1.0.2`. 게시된 공개 assets를 확�
 | 나머지 선택 기능 | ACR geo, App Gateway, DNS Resolver, alerts 기본 `false` 유지 |
 
 기존 Bicep/CLI 경로는 `deployWorkshopBootstrap=false` 기본값을 유지합니다.
+공개 포털 템플릿은 owner·monthlyBudget·budgetStartDate 입력과 예산 생성을 제외합니다.
+owner 태그와 이메일 알림도 만들지 않습니다. 기존 CLI 경로의 owner/예산/선택 알림은 유지합니다.
+예산을 만들지 않아도 서비스 과금은 발생하므로 비용 검토와 종료 후 삭제는 필수입니다.
 `main.bicepparam`의 환경 변수는 포털에 자동 반영되지 않습니다.
 **D4s_v5 2노드/리전 등 현재 지원 SKU와 비용은 기존 기준을 유지**합니다.
 KRS의 기능/용량 지원을 확인할 수 없으면 강사가 중단하거나 해당 기능을 명시적으로 끕니다.

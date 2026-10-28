@@ -123,6 +123,32 @@ az() { printf '%s\\n' "$*" >>"$DESTROY_CALLS"; }
             self.assertIn("Unexpected workshop resource group", proc.stderr)
             self.assertFalse(calls.exists(), "No delete may occur before validating all target names.")
 
+    def test_destroy_skips_budget_for_portal_profile(self):
+        config = {
+            "prefix": "workshop", "primaryResourceGroup": "rg-workshop-krc",
+            "secondaryResourceGroup": "rg-workshop-krs", "globalResourceGroup": "rg-workshop-global",
+            "trafficManager": {"id": "/tm/workshop", "fqdn": "workshop.trafficmanager.net"},
+            "budget": 0, "budgetName": "",
+        }
+        source = (ROOT / "scripts" / "destroy.sh").read_text().split("load_config", 1)[1]
+        path, calls = WORK / "portal-destroy-config.json", WORK / "portal-destroy-calls.txt"
+        path.write_text(json.dumps(config))
+        prefix = """
+source scripts/common.sh
+az() { printf '%s\\n' "$*" >>"$DESTROY_CALLS"; }
+"""
+        proc = shell(prefix + source, {
+            "CONFIG_FILE": str(path), "DESTROY_CALLS": calls.as_posix(),
+            "PREFIX": "workshop", "SUBSCRIPTION_ID": "test-subscription", "REQUIRE_OWNER_TAG": "false",
+            "CONFIRM": "DELETE test-subscription rg-workshop-krc rg-workshop-krs rg-workshop-global",
+            "CONFIRM_BUDGET": "",
+        })
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        commands = calls.read_text()
+        self.assertEqual(commands.count("group delete"), 3)
+        self.assertNotIn("Microsoft.Consumption/budgets", commands)
+        self.assertNotIn("DELETE BUDGET", proc.stderr)
+
     def test_remote_exit_and_error_validation(self):
         cases = [
             ('{"exitCode":0,"logs":"ok"}', True),

@@ -62,7 +62,7 @@ bash scripts/drill/00-precheck.sh
 RG_KRC="$(cfg '.primaryResourceGroup')"
 RG_KRS="$(cfg '.secondaryResourceGroup')"
 RG_GLOBAL="$(cfg '.globalResourceGroup')"
-BUDGET_NAME="$(cfg '.budgetName')"
+BUDGET_NAME="$(jq -r '.budgetName // empty' "$CONFIG_FILE")"
 MANAGED_KRC="$(az aks show -g "$RG_KRC" -n "$(cfg '.primary.aks.name')" --query nodeResourceGroup -o tsv)"
 MANAGED_KRS="$(az aks show -g "$RG_KRS" -n "$(cfg '.secondary.aks.name')" --query nodeResourceGroup -o tsv)"
 printf 'subscription=%s\nRGs=%s %s %s\nmanaged=%s %s\nbudget=%s\n' \
@@ -72,21 +72,23 @@ printf 'subscription=%s\nRGs=%s %s %s\nmanaged=%s %s\nbudget=%s\n' \
 대상이 팀의 `rg-<prefix>-krc/krs/global` 및 해당 AKS managed RG인지 확인합니다.
 공유 빌드 네트워크나 다른 팀 RG는 삭제 대상이 아닙니다.
 
-## 7-3. 승인 후 3개 RG + 구독 예산/부트스트랩 역할 삭제 — 파괴적
+## 7-3. 승인 후 3개 RG + 구성된 예산/부트스트랩 역할 삭제 — 파괴적
 
 ```bash
 unset CONFIRM CONFIRM_BUDGET CONFIRM_BOOTSTRAP_ROLE
-REQUIRE_OWNER_TAG=true bash scripts/destroy.sh
+REQUIRE_OWNER_TAG=false bash scripts/destroy.sh
 ```
 
 스크립트가 요구하는 확인을 각각 입력합니다.
 
 - `DELETE <subscription> <primaryRG> <secondaryRG> <globalRG>`
-- `DELETE BUDGET <budgetName>`
+- 예산이 있는 기존 CLI 환경만 `DELETE BUDGET <budgetName>`
 - 포털 부트스트랩 사용 시 `DELETE BOOTSTRAP ROLE <prefix>-workshop-bootstrap`
 
-실제 3개 RG 이름/owner와 custom role의 구독/정확한 이름을 검사합니다.
-삭제 완료 대기 후 구독 범위 예산과 부트스트랩 custom role도 삭제합니다.
+포털 프로필에는 owner 태그와 예산이 없습니다. 위 명령은 실제 3개 RG 이름과
+custom role의 구독/정확한 이름을 검사하고, 빈 budgetName이면 예산 확인/삭제를 생략합니다.
+owner 태그가 있는 기존 CLI 환경은 `REQUIRE_OWNER_TAG=true`로 소유자까지 검사하세요.
+삭제 완료 대기 후 구성된 구독 범위 예산과 부트스트랩 custom role도 삭제합니다.
 Automation/암호화 설정 asset/부트스트랩 MI는 global RG와 함께 삭제됩니다.
 삭제된 RG 안의 AKS가 관리하는 노드 RG도 정리되어야 합니다.
 성공 후 CONFIG_FILE이 제거되므로, 이후 `load_config`를 다시 호출해 삭제된 환경을
@@ -97,13 +99,15 @@ for group in "$RG_KRC" "$RG_KRS" "$RG_GLOBAL" "$MANAGED_KRC" "$MANAGED_KRS"; do
   printf '%s: ' "$group"
   az group exists --name "$group"
 done
-az rest --method get \
-  --url "https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/providers/Microsoft.Consumption/budgets?api-version=2026-06-01" \
-  --query "value[?name=='$BUDGET_NAME'].name" -o json
+if [[ -n "$BUDGET_NAME" ]]; then
+  az rest --method get \
+    --url "https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/providers/Microsoft.Consumption/budgets?api-version=2026-06-01" \
+    --query "value[?name=='$BUDGET_NAME'].name" -o json
+fi
 unset PG_ADMIN_PASSWORD PG_PASSWORD REDIS_KEY_KRC REDIS_KEY_KRS
 ```
 
-기대는 각 RG false와 해당 예산 목록 `[]`입니다. 포털 경로는
+기대는 각 RG false와, 예산이 있었던 경우 해당 예산 목록 `[]`입니다. 포털 경로는
 `az role definition list --name "$PREFIX-workshop-bootstrap" -o json`도 `[]`인지 확인합니다.
 권한/통신 오류를 리소스가 없다는 증거로 해석하지 마세요.
 잠금/정책/서비스 삭제 실패가 있으면 소유자가 확인할 때까지 정리 미완료입니다.

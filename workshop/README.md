@@ -14,7 +14,8 @@
 - 전체 기능 구성의 기존 견적 예시는 약 **USD 3,511/월**입니다.
   이는 100GiB 기본값의 과거 Retail 예시이며 오늘의 견적·실습 총액·상한이 아닙니다.
   본 과정은 데이터를 약 10GiB로 줄여도 상시 컴퓨트 비용 대부분은 남습니다.
-  예산 1,000과 expiry 태그는 리소스나 과금을 자동 중지하지 않습니다.
+  포털 프로필은 owner/예산을 생성하지 않습니다. 기존 CLI 예산 1,000과
+  expiry 태그도 리소스나 과금을 자동 중지하지 않습니다.
 - 리전당 AKS 시스템 노드 **D4s_v5 2대**가 현재 구현 기본값입니다.
   B 시리즈/1노드로 임의 변경하지 않습니다.
 - 업무 PaaS 데이터 경로는 Private Endpoint, 앱 HTTP만 공용입니다.
@@ -103,6 +104,8 @@
 
 ## 자료 검증 범위
 
+- owner/예산 없는 포털 프로필 변경 시 운영 회귀 41개, CLI/포털 compiled ARM을
+  포함한 부트스트랩 검사 11개가 통과했습니다. 기존 CLI 예산 기본값은 유지합니다.
 - 2026-10-28 공개 릴리스 `v1.0.2`에서 네 assets의 익명 다운로드와
   이미지/runbook/ARM JSON의 SHA256을 확인했습니다. 태그 고정 raw JSON도
   Release JSON과 바이트가 같고 CORS `*` 응답을 제공합니다.
@@ -134,4 +137,6 @@ bash scripts/tests/run.sh
 
 PowerShell이 없으면 해당 suite가 NOT RUN으로 표시됩니다. 강사 PC에서는
 `pwsh -File scripts/tests/test-workshop-bootstrap.ps1`도 반드시 실행합니다.
-`-TemplatePath`에 실제 `az bicep build` 산출물을 주면 compiled ARM 계약까지 검사합니다.
+`-TemplatePath`에는 CLI용 `infra/main.bicep`의 build 산출물을,
+`-PortalTemplatePath`에는 실제 패키징한 `azuredeploy.json`을 주면
+각 프로필의 compiled ARM 계약과 포털 owner/예산 제외를 검사합니다.

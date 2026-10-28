@@ -4,7 +4,7 @@
 
 ## 0-1. 팀과 범위 정하기
 
-팀별 prefix(예: drws01a7), 테스트 구독, owner 이메일, 만료일, 허용 공인 CIDR,
+팀별 prefix(예: drws01a7), 테스트 구독, 만료일, 허용 공인 CIDR,
 예산 승인자, 훈련 오퍼레이터를 정합니다. 공유 구독이라면 강사가 quota/비용을
 팀 수만큼 합산합니다. prefix는 **3~12자 소문자 영숫자**로 선택하고,
 TM 공용 DNS 등 전역 이름 충돌을 피하도록 조직/팀 식별자와 임의 숫자를 조합하세요.
@@ -12,7 +12,7 @@ TM 공용 DNS 등 전역 이름 충돌을 피하도록 조직/팀 식별자와 �
 강사가 필요한 권한을 최소 범위·기간으로 준비합니다.
 
 - subscription deployment, 각 서비스 생성, provider 등록/할당량 확인
-- 앱/샘플 MI 및 kubelet 역할 할당, 예산 생성/삭제
+- 앱/샘플 MI 및 kubelet 역할 할당
 - AKS command invoke/결과 조회
 - Storage ARM 조회, PostgreSQL planned switchover, TM endpoint 변경
 - full 프로필은 Redis database listKeys, EH geo promotion 권한
@@ -81,7 +81,9 @@ full은 EH/Redis/Search를 모두 켜고 약 10GiB 샘플을 사용합니다.
 lite는 EH/Redis/Search를 모두 끄며 PG/TM/Storage 중심으로만 수행합니다.
 **lite도 무료가 아니며 full의 DR 결과를 대신하지 않습니다.**
 
-예산 통화는 구독 청구 통화, Retail 견적 통화는 다음 Lab에서 지정하는 USD입니다.
+공개 포털 프로필은 owner 입력과 구독 예산 생성을 생략합니다.
+비용 승인자·정리 담당자는 운영상 별도로 정하며, 비용 검토를 생략하지 않습니다.
+기존 CLI 프로필의 예산은 구독 청구 통화이고 Retail 견적은 USD입니다.
 서로 다른 통화 금액을 직접 비교하지 마세요. 생성·복제·삭제 대기 중에도 과금됩니다.
 
 ## 완료 게이트

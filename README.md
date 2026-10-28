@@ -1,13 +1,15 @@
 # Azure DR workshop
 
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Frandy-shlee%2Fazure-dr-workshop%2Fv1.0.2%2Fworkshop%2Freleases%2Fazuredeploy.json)
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Frandy-shlee%2Fazure-dr-workshop%2Fv1.0.3%2Fworkshop%2Freleases%2Fazuredeploy.json)
 
-[v1.0.2 릴리스](https://github.com/randy-shlee/azure-dr-workshop/releases/tag/v1.0.2)의
+[v1.0.3 릴리스](https://github.com/randy-shlee/azure-dr-workshop/releases/tag/v1.0.3)의
 ARM 템플릿·runbook·Linux/amd64 이미지 아카이브를 사용합니다.
 먼저 워크숍의 비용·권한·공개 네트워크 예외를 검토하세요. 버튼을 누르는 것만으로는
 배포되지 않으며 **Review + create → Create** 승인 시 과금 리소스가 생성됩니다.
 
 고객 실습은 [단계별 워크숍](workshop/README.md)을 사용하세요.
+[간소화 가이드 검토안](WORKSHOP_SIMPLE_PROPOSAL.md)은 승인 대기이며,
+새 `Workshop_simple` 문서는 아직 작성하지 않았습니다.
 강사 로컬 이미지 build/save·GitHub Release 준비, Deploy to Azure와 양 AKS 자동 배포,
 브라우저 테스트, DR 전환·원복, 비용 정리와 강사 가이드를 별도 폴더에 제공합니다.
 
@@ -21,6 +23,9 @@ ARM 성공은 자동화 시작 성공이지 앱/샘플 완료가 아닙니다.
 [상태 확인](scripts/bootstrap-status.sh)과 [포털 실습](workshop/labs/01-infrastructure.md)을 참고하세요.
 공개 릴리스와 배포 버튼은 [포털 실습](workshop/labs/01-infrastructure.md)에서 확인합니다.
 버튼은 포털 입력 화면만 열며 실제 Azure 리소스 생성은 별도 승인이 필요합니다.
+공개 포털 프로필은 [별도 진입점](infra/workshop.bicep)을 사용하여 owner 입력/태그와
+구독 예산 생성을 제외합니다. 이메일 알림도 비활성화합니다.
+기존 CLI 프로필의 owner·예산 동작은 유지되며, 아래 CLI 설명과 구별하세요.
 
 Korea Central / Korea South 간 **훈련용** Bicep와 Bash 운영 도구입니다.
 전환·원복, DNS 진입점, RA-GRS 보조 읽기를 확인합니다. 성능, SLA, 가용성,

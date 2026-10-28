@@ -1,5 +1,5 @@
 #requires -Version 7.2
-param([string]$TemplatePath)
+param([string]$TemplatePath, [string]$PortalTemplatePath)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $failures = [Collections.Generic.List[string]]::new()
@@ -213,6 +213,7 @@ Test 'real local packaging flow is mocked through build/save/compression/ARM/but
     function script:az {
         $global:LASTEXITCODE = 0
         Assert ($args[0] -eq 'bicep' -and $args[1] -eq 'build') 'Unexpected Azure mutation.'
+        Assert ($args[3] -eq (Join-Path $root 'infra\workshop.bicep')) 'Packager must compile the owner/budget-free portal entry point.'
         @{ '$schema' = 'https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#'; parameters = $global:WorkshopTestFixtureParameters } |
             ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $args[-1]
     }
@@ -249,6 +250,27 @@ Test 'real local packaging flow is mocked through build/save/compression/ARM/but
             if (Test-Path $path) { Remove-Item -LiteralPath $path }
         }
         if (Test-Path $stage) { Remove-Item -LiteralPath $stage }
+    }
+}
+if ($PortalTemplatePath) {
+    Test 'compiled portal excludes owner and budget inputs and disables their dependent resources' {
+        $portal = Get-Content -Raw $PortalTemplatePath | ConvertFrom-Json -AsHashtable
+        foreach ($name in @('owner','monthlyBudget','budgetStartDate','deployBudget','deployAlerts','enableStorageLastSyncCustomMetricAlert')) {
+            Assert (-not $portal.parameters.ContainsKey($name)) "Unexpected portal input: $name"
+        }
+        $module = @($portal.resources | Where-Object name -like '*-infrastructure*')
+        Assert ($module.Count -eq 1) 'Expected one shared infrastructure deployment.'
+        $parameters = $module[0].properties.parameters
+        Assert ($parameters.owner.value -ceq '') 'Portal must not substitute a fictitious owner.'
+        Assert ($parameters.deployBudget.value -eq $false) 'Portal must not deploy a budget.'
+        Assert ($parameters.deployAlerts.value -eq $false) 'Email alerts require the CLI owner profile.'
+        $inner = $module[0].properties.template
+        $budget = @($inner.resources | Where-Object type -eq 'Microsoft.Consumption/budgets')
+        Assert ($budget.Count -eq 1 -and $budget[0].condition -eq "[parameters('deployBudget')]") 'Budget resource is not gated.'
+        Assert ($inner.parameters.deployBudget.defaultValue -eq $true) 'CLI budget default changed.'
+        Assert ($inner.outputs.config.value.Contains("'budget', if(parameters('deployBudget'), parameters('monthlyBudget'), 0)")) 'Budget-free output amount must be zero.'
+        Assert ($inner.outputs.config.value.Contains("'budgetName', if(parameters('deployBudget'), format('{0}-drtest-budget', parameters('prefix')), '')")) 'Budget-free cleanup output must be empty.'
+        Assert ($portal.outputs.config.value -match 'outputs.config.value') 'Portal config output must forward the shared deployment.'
     }
 }
 if ($TemplatePath) {

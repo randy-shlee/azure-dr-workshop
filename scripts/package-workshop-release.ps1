@@ -97,7 +97,7 @@ $runbook = Join-Path $stage 'workshop-bootstrap.ps1'
 [IO.File]::WriteAllText($runbook, $source.Replace('# __WORKSHOP_RELEASE_CONSTANTS__', $constants), [Text.UTF8Encoding]::new($false))
 $runbookHash = (Get-FileHash $runbook -Algorithm SHA256).Hash.ToLowerInvariant()
 $templatePath = Join-Path $stage 'azuredeploy.json'
-Invoke-Native az @('bicep', 'build', '--file', (Join-Path $root 'infra\main.bicep'), '--outfile', $templatePath)
+Invoke-Native az @('bicep', 'build', '--file', (Join-Path $root 'infra\workshop.bicep'), '--outfile', $templatePath)
 $template = Get-Content -Raw $templatePath | ConvertFrom-Json -AsHashtable
 $template = Set-PortalDefaults $template $releaseUri $imageHash $runbookHash
 $templateJson = ($template | ConvertTo-Json -Depth 100).Replace("`r`n", "`n") + "`n"

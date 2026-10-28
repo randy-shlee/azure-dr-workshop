@@ -14,9 +14,13 @@ for i in "${!groups[@]}"; do
   fi
 done
 confirm "DELETE $SUBSCRIPTION_ID ${groups[*]}"
-budget_name="$(jq -r '.budgetName // (.prefix + "-drtest-budget")' "$CONFIG_FILE")"
-note "Subscription budget $budget_name is not part of any resource group."
-confirm "DELETE BUDGET $budget_name" CONFIRM_BUDGET
+budget_name="$(jq -r 'if has("budgetName") then .budgetName // empty else .prefix + "-drtest-budget" end' "$CONFIG_FILE")"
+if [[ -n "$budget_name" ]]; then
+  note "Subscription budget $budget_name is not part of any resource group."
+  confirm "DELETE BUDGET $budget_name" CONFIRM_BUDGET
+else
+  note 'This deployment has no subscription budget; budget cleanup is skipped.'
+fi
 bootstrap_role="$(jq -r '.bootstrap.operatorRoleId // empty' "$CONFIG_FILE")"
 if [[ -n "$bootstrap_role" ]]; then
   [[ "$bootstrap_role" == "/subscriptions/$SUBSCRIPTION_ID/providers/Microsoft.Authorization/roleDefinitions/"* &&
@@ -27,7 +31,9 @@ if [[ -n "$bootstrap_role" ]]; then
 fi
 for group in "${groups[@]}"; do az group delete -n "$group" --yes --no-wait; done
 for group in "${groups[@]}"; do az group wait -n "$group" --deleted --interval 20 --timeout 7200; done
-az rest --method delete --url "https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/providers/Microsoft.Consumption/budgets/$budget_name?api-version=2026-06-01" -o none
+if [[ -n "$budget_name" ]]; then
+  az rest --method delete --url "https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/providers/Microsoft.Consumption/budgets/$budget_name?api-version=2026-06-01" -o none
+fi
 if [[ -n "$bootstrap_role" ]]; then
   for attempt in {1..12}; do
     if az role definition delete --name "${bootstrap_role##*/}"; then break; fi
@@ -36,4 +42,4 @@ if [[ -n "$bootstrap_role" ]]; then
   done
 fi
 rm -f "$CONFIG_FILE"
-note 'Named resource groups, subscription budget and opted-in bootstrap custom role deleted. Deployment history and retained audit logs are not deleted.'
+note 'Named resource groups and any configured subscription budget/bootstrap custom role deleted. Deployment history and retained audit logs are not deleted.'
