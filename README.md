@@ -1,8 +1,8 @@
 # Azure DR workshop
 
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Frandy-shlee%2Fazure-dr-workshop%2Fv1.0.1%2Fworkshop%2Freleases%2Fazuredeploy.json)
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Frandy-shlee%2Fazure-dr-workshop%2Fv1.0.2%2Fworkshop%2Freleases%2Fazuredeploy.json)
 
-[v1.0.1 릴리스](https://github.com/randy-shlee/azure-dr-workshop/releases/tag/v1.0.1)의
+[v1.0.2 릴리스](https://github.com/randy-shlee/azure-dr-workshop/releases/tag/v1.0.2)의
 ARM 템플릿·runbook·Linux/amd64 이미지 아카이브를 사용합니다.
 먼저 워크숍의 비용·권한·공개 네트워크 예외를 검토하세요. 버튼을 누르는 것만으로는
 배포되지 않으며 **Review + create → Create** 승인 시 과금 리소스가 생성됩니다.

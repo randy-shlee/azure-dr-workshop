@@ -27,7 +27,7 @@ PAT, 만료되는 서명 URL은 지원하지 않습니다. 배포할 포털 JSON
 
 ```powershell
 pwsh -File .\scripts\package-workshop-release.ps1 `
-  -Repository 'YOUR-ORG/YOUR-REPO' -ReleaseTag 'v1.0.1' -UpdateWorkshopButton
+  -Repository 'YOUR-ORG/YOUR-REPO' -ReleaseTag 'v1.0.2' -UpdateWorkshopButton
 ```
 
 [패키저](../../scripts/package-workshop-release.ps1)는 다음을 수행합니다.
@@ -38,10 +38,11 @@ pwsh -File .\scripts\package-workshop-release.ps1 `
    `.state`, 암호, 전체 저장소, 이미지 파일은 이 ZIP에 포함하지 않음.
 4. 원본 [Bicep](../../infra/main.bicep)을 ARM JSON으로 빌드하고
    워크숍 10GiB/부트스트랩 true/Release URL/해시 기본값을 설정.
-5. `.state/releases/v1.0.1`에 파일 생성. 기존 디렉터리/동일 버전 덮어쓰기는 거절.
+5. `.state/releases/v1.0.2`에 파일 생성. 기존 디렉터리/동일 버전 덮어쓰기는 거절.
 6. `-UpdateWorkshopButton`이면 같은 JSON을 `workshop/releases/azuredeploy.json`에도
    생성하고 Lab 01의 버튼을 **릴리스 태그로 고정한 raw.githubusercontent.com URL**로 교체.
    GitHub Release 다운로드 주소는 포털 브라우저의 CORS 요청을 지원하지 않습니다.
+   JSON은 UTF-8/LF로 생성하여 Git 줄바꿈 정규화 후에도 SHA256을 유지합니다.
    생성된 JSON과 문서 변경을 commit/push한 뒤 그 commit에 새 릴리스 태그를 생성합니다.
    **태그 게시 전에는 버튼 URL이 아직 열리지 않습니다.**
 
@@ -67,7 +68,7 @@ what-if만으로 포털 프로필을 검증했다고 적지 않습니다.
 ```bash
 read -rs -p 'Test PostgreSQL password for what-if: ' PG_PASSWORD; echo
 export PG_PASSWORD
-export PORTAL_TEMPLATE="$ROOT_DIR/.state/releases/v1.0.1/azuredeploy.json"
+export PORTAL_TEMPLATE="$ROOT_DIR/.state/releases/v1.0.2/azuredeploy.json"
 (
   umask 077
   stage="$(mktemp -d "$STATE_DIR/portal-what-if.XXXXXX")"
@@ -95,7 +96,7 @@ NestedDeploymentShortCircuited는 상세 검증 생략이며 실제 성공 보�
 
 ```powershell
 $repo = 'YOUR-ORG/YOUR-REPO'
-$tag = 'v1.0.1'
+$tag = 'v1.0.2'
 $dir = Join-Path (Get-Location) ".state\releases\$tag"
 git add workshop/releases/azuredeploy.json workshop/labs/01-infrastructure.md
 git commit -m "Prepare workshop portal template $tag"

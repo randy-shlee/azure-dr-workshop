@@ -234,6 +234,9 @@ Test 'real local packaging flow is mocked through build/save/compression/ARM/but
         Assert ($manifest.templateUri -ceq $expectedTemplateUri) 'Portal template must use a tag-pinned CORS-enabled raw URL.'
         Assert ($button.Contains([Uri]::EscapeDataString($expectedTemplateUri))) 'Template URI not encoded.'
         Assert (-not $button.Contains('https%3A%2F%2Fgithub.com%2F')) 'Release download URL is not browser-CORS compatible.'
+        $templateText = [IO.File]::ReadAllText((Join-Path $stage 'azuredeploy.json'))
+        Assert (-not $templateText.Contains("`r")) 'Portal template must use LF so Git normalization preserves its SHA256.'
+        Assert ((Get-FileHash (Join-Path $stage 'azuredeploy.json')).Hash.ToLowerInvariant() -eq $manifest.templateSha256) 'Template hash does not match.'
         $compiled = Get-Content -Raw (Join-Path $stage 'azuredeploy.json') | ConvertFrom-Json
         Assert ($compiled.parameters.appImageArchiveSha256.defaultValue -eq $manifest.imageSha256) 'Portal image hash mismatch.'
         $errors = $null; $tokens = $null

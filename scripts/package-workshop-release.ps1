@@ -100,7 +100,8 @@ $templatePath = Join-Path $stage 'azuredeploy.json'
 Invoke-Native az @('bicep', 'build', '--file', (Join-Path $root 'infra\main.bicep'), '--outfile', $templatePath)
 $template = Get-Content -Raw $templatePath | ConvertFrom-Json -AsHashtable
 $template = Set-PortalDefaults $template $releaseUri $imageHash $runbookHash
-$template | ConvertTo-Json -Depth 100 | Set-Content -LiteralPath $templatePath -Encoding utf8NoBOM
+$templateJson = ($template | ConvertTo-Json -Depth 100).Replace("`r`n", "`n") + "`n"
+[IO.File]::WriteAllText($templatePath, $templateJson, [Text.UTF8Encoding]::new($false))
 $templateHash = (Get-FileHash $templatePath -Algorithm SHA256).Hash.ToLowerInvariant()
 @{
     repository = $Repository; releaseTag = $ReleaseTag; architecture = $architecture

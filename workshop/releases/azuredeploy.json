@@ -155,19 +155,19 @@
     },
     "bootstrapRunbookUri": {
       "type": "string",
-      "defaultValue": "https://github.com/randy-shlee/azure-dr-workshop/releases/download/v1.0.1/workshop-bootstrap.ps1"
+      "defaultValue": "https://github.com/randy-shlee/azure-dr-workshop/releases/download/v1.0.2/workshop-bootstrap.ps1"
     },
     "bootstrapRunbookSha256": {
       "type": "string",
-      "defaultValue": "e74566be66c90ed6e7438a1289c233e1ce6976f7d540d4fe48b72588512ff8f9"
+      "defaultValue": "d93fa90bc786904fb35aa8e5b1c30ff71421986b0d6316c2c1a86b8fc0dbf0b5"
     },
     "appImageArchiveUri": {
       "type": "string",
-      "defaultValue": "https://github.com/randy-shlee/azure-dr-workshop/releases/download/v1.0.1/app-image.tar.gz"
+      "defaultValue": "https://github.com/randy-shlee/azure-dr-workshop/releases/download/v1.0.2/app-image.tar.gz"
     },
     "appImageArchiveSha256": {
       "type": "string",
-      "defaultValue": "1449f504c08ef35dbdb4ecf2847854e2c73037c891e4a18a91637eca34e26f67"
+      "defaultValue": "b35a44543ea1d80acb2a9f4d1eca14ae8187cf1e7fd465f4ea892ad69b2289ba"
     },
     "bootstrapRunId": {
       "type": "string",
