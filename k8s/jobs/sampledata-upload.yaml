@@ -1,0 +1,66 @@
+# Rendered by upload-sampledata.sh as JSON/YAML; never apply unresolved placeholders.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: sampledata-upload
+  namespace: drtest
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 86400
+  template:
+    metadata:
+      labels:
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: sampledata-upload
+      restartPolicy: Never
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      initContainers:
+        - name: azcopy
+          image: mcr.microsoft.com/azure-cli:2.85.0
+          command:
+            - /bin/bash
+            - -Eeuo
+            - pipefail
+            - -c
+            - |
+              cd /tools
+              curl --fail --location --retry 5 --connect-timeout 30 --max-time 300 \
+                https://github.com/Azure/azure-storage-azcopy/releases/download/v10.34.1/azcopy_linux_amd64_10.34.1.tar.gz \
+                -o azcopy.tar.gz
+              echo 'a0021809e53f2b40705509626b8d44f2312fa8ef39deeb941fcffd35012bf6d1  azcopy.tar.gz' | sha256sum -c -
+              tar -xzf azcopy.tar.gz --strip-components=1 --wildcards '*/azcopy'
+              rm azcopy.tar.gz
+              chmod 755 /tools/azcopy
+              /tools/azcopy --version
+          resources:
+            requests: {cpu: 100m, memory: 128Mi, ephemeral-storage: 128Mi}
+            limits: {cpu: "1", memory: 256Mi, ephemeral-storage: 256Mi}
+          volumeMounts:
+            - {name: tools, mountPath: /tools}
+      containers:
+        - name: upload
+          image: mcr.microsoft.com/azure-cli:2.85.0
+          command: [/bin/bash, /program/sampledata-program.sh]
+          env:
+            - {name: STORAGE_ENDPOINT, value: "__STORAGE_ENDPOINT__"}
+            - {name: SIZE_GB, value: "100"}
+            - {name: LARGE_FILE_SIZE_GB, value: "10"}
+            - {name: SMALL_FILE_COUNT, value: "20000"}
+            - {name: SMALL_FILE_SIZE_MB, value: "1"}
+            - {name: UPLOAD_MODE, value: upload}
+            - {name: AZCOPY_AUTO_LOGIN_TYPE, value: WORKLOAD}
+            - {name: AZCOPY_CONCURRENCY_VALUE, value: "2"}
+            - {name: AZCOPY_BUFFER_GB, value: "0.0625"}
+          resources:
+            requests: {cpu: 100m, memory: 256Mi, ephemeral-storage: 512Mi}
+            limits: {cpu: "1", memory: 512Mi, ephemeral-storage: 2Gi}
+          volumeMounts:
+            - {name: tools, mountPath: /tools, readOnly: true}
+            - {name: program, mountPath: /program, readOnly: true}
+            - {name: work, mountPath: /work}
+      volumes:
+        - {name: tools, emptyDir: {sizeLimit: 128Mi}}
+        - {name: program, configMap: {name: sampledata-program}}
+        - {name: work, emptyDir: {sizeLimit: 1Gi}}

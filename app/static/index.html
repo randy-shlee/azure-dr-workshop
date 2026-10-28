@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>KRC ↔ KRS DR 테스트</title>
+  <style>
+    :root{font-family:"Segoe UI","Malgun Gothic","맑은 고딕",sans-serif;color:#242424;background:#fff;font-size:14px}
+    *{box-sizing:border-box}body{margin:0}header{border-top:5px solid #0078d4;border-bottom:1px solid #ddd;padding:22px max(24px,calc((100vw - 1300px)/2))}
+    main{max-width:1348px;margin:auto;padding:20px 24px}h1{font-size:23px;margin:0 0 6px}h2{font-size:17px;margin:0 0 14px}p{line-height:1.55}.muted{color:#616161;font-size:12px}
+    .banner{display:flex;flex-wrap:wrap;gap:24px;margin-top:22px}.region-box{display:flex;align-items:center;gap:12px}.badge{display:inline-block;border-radius:4px;padding:4px 8px;font-size:12px;font-weight:600;background:#eee;color:#424242}
+    .big{font-size:24px;padding:8px 18px;min-width:95px;text-align:center}.krc{background:#0078d4;color:white}.krs{background:#ca5010;color:white}
+    .ok{background:#dff6dd;color:#107c10}.error{background:#fde7e9;color:#a4262c}.disabled{background:#eee;color:#666}.public{background:#fff4ce;color:#7a5900}
+    #metadata{display:flex;flex-wrap:wrap;gap:8px 20px;margin-top:16px;font-size:12px;color:#616161}#cache-warning{background:#fff4ce;border-left:4px solid #ffb900;padding:12px;margin:16px 0 0}
+    .toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px}.toolbar label{margin-left:auto}button{font:inherit;border:1px solid #bdbdbd;background:#fff;border-radius:3px;padding:7px 14px;cursor:pointer}button:hover{background:#f3f3f3}button.primary{background:#0078d4;border-color:#0078d4;color:white}button:disabled{opacity:.55;cursor:wait}input{accent-color:#0078d4}
+    .cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.card{border:1px solid #ddd;border-radius:5px;padding:15px;min-height:180px}.card-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:12px}.card h3{margin:0;font-size:15px}.card dl{margin:0;display:grid;grid-template-columns:65px minmax(0,1fr);gap:8px}.card dt{color:#616161;font-size:12px}.card dd{margin:0;font-size:12px;overflow-wrap:anywhere}.card .detail-error{margin:10px 0 0;color:#a4262c;font-size:12px;overflow-wrap:anywhere}
+    section.panel{border:1px solid #ddd;border-radius:5px;margin-top:18px;padding:18px}.scroll{overflow:auto}table{width:100%;border-collapse:collapse;font-size:12px}th{text-align:left;color:#616161;background:#fafafa;font-weight:600}th,td{padding:9px 10px;border-bottom:1px solid #eee;vertical-align:top}td pre{white-space:pre-wrap;overflow-wrap:anywhere;margin:0;font-family:inherit;max-width:680px}#notice{min-height:20px;margin:10px 0;color:#a4262c}#sample-summary{display:flex;flex-wrap:wrap;gap:10px 24px;margin-bottom:12px;font-size:12px}.log{list-style:none;padding:0;margin:0;max-height:210px;overflow:auto}.log li{padding:7px 0;border-bottom:1px solid #eee;font-size:12px}.log time{color:#616161;display:inline-block;min-width:185px}footer{margin-top:20px;border-top:1px solid #ddd;padding-top:12px;color:#616161;font-size:12px}details{margin-top:12px}summary{cursor:pointer}#raw-samples{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}
+    @media(min-width:1200px){.cards{grid-template-columns:repeat(6,minmax(0,1fr))}.card dl{grid-template-columns:1fr;gap:4px}.card dd{margin-bottom:5px}}@media(max-width:700px){.cards{grid-template-columns:repeat(2,minmax(0,1fr))}header,main{padding:16px}.toolbar label{margin-left:0}.big{font-size:20px}.log time{display:block}}
+  </style>
+</head>
+<body>
+<header>
+  <h1>KRC ↔ KRS DR 기능 검증</h1>
+  <div class="muted">테스트 전용 · HTTP · 성능/가용성 검증 아님 · 모든 시각은 UTC</div>
+  <div class="banner">
+    <div class="region-box"><span>응답한 서버 리전</span><strong id="server-region" class="badge big" aria-live="polite">—</strong></div>
+    <div class="region-box"><span>Traffic Manager 안내 리전</span><strong id="tm-region" class="badge big" aria-live="polite">—</strong></div>
+  </div>
+  <div id="metadata"><span id="pod">Pod: —</span><span id="host">Host: —</span><span id="storage-mode">Storage 읽기: —</span><span id="updated">마지막 갱신: —</span></div>
+  <div id="cache-warning" hidden>DNS 캐시 또는 기존 연결 유지로 아직 이전 리전에 접속 중. 새 브라우저 창이나 시크릿 창으로 다시 접속하세요.</div>
+</header>
+<main>
+  <div class="toolbar">
+    <button id="write" class="primary">쓰기 테스트</button>
+    <button id="read">읽기 테스트</button>
+    <button id="sample">샘플 데이터 확인</button>
+    <button id="refresh">지금 새로고침</button>
+    <label><input id="auto" type="checkbox" checked> 10초 자동 새로고침</label>
+  </div>
+  <p id="notice" role="status" aria-live="polite"></p>
+  <div id="services" class="cards"></div>
+  <section class="panel">
+    <h2>Traffic Manager DNS — Pod 내부 조회</h2>
+    <div id="tm-details" class="muted">조회 대기 중</div>
+  </section>
+  <section class="panel">
+    <h2>쓰기 / 읽기 결과</h2>
+    <p id="operation-summary" class="muted">쓰기·읽기 버튼을 눌러 서비스별 실제 응답을 확인하세요.</p>
+    <div class="scroll"><table><thead><tr><th>작업 / 서비스</th><th>상태</th><th>시간(ms)</th><th>결과 / 오류</th></tr></thead><tbody id="results"></tbody></table></div>
+  </section>
+  <section class="panel">
+    <h2>샘플 데이터 복제 — 버튼을 눌렀을 때만 조회</h2>
+    <div id="sample-summary"><span>Last Sync Time: —</span><span>Manifest 종료: —</span><span>복제 완료: 미확인</span></div>
+    <div class="scroll"><table><thead><tr><th>엔드포인트</th><th>상태</th><th>대형 파일</th><th>소형 파일</th><th>용량(GiB)</th><th>1MiB 읽기(ms)</th><th>목록 캐시</th></tr></thead><tbody id="sample-rows"></tbody></table></div>
+    <details><summary>Manifest / 상세 결과</summary><pre id="raw-samples">아직 조회하지 않았습니다.</pre></details>
+  </section>
+  <section class="panel">
+    <h2>리전 변화 로그 <span class="muted">최근 20건 · 이 브라우저 탭에서 관측한 시각</span></h2>
+    <ul id="events" class="log" aria-live="polite"></ul>
+    <p class="muted">관측 간격·Pod DNS 캐시·브라우저 DNS 캐시·기존 연결이 함께 영향을 줍니다. 두 변화 시각의 차이를 DNS 캐시만의 정확한 지연으로 단정하지 마세요. 새 탭은 이 탭의 로그를 이어받지 않습니다.</p>
+  </section>
+  <footer>훈련 후 99-restore-probe → pause 또는 destroy를 실행하세요. 쓰기 테스트는 유료 서비스에 소량의 데이터를 기록합니다. 서비스 오류와 disabled를 구별해 확인하세요.</footer>
+</main>
+<script>
+"use strict";
+const names = {postgres:"PostgreSQL",redis:"Redis",event_hubs:"Event Hubs",storage_primary:"Storage primary",storage_secondary:"Storage secondary",search:"AI Search"};
+const state = {server:null,tm:null,refreshing:false,events:[]};
+const $ = id => document.getElementById(id);
+function node(tag, text, cls) { const el=document.createElement(tag); if(text!==undefined) el.textContent=String(text); if(cls) el.className=cls; return el; }
+function badge(value) {
+  const label=String(value ?? "UNKNOWN").toUpperCase();
+  return node("span",label,"badge "+(label==="KRC"?"krc":label==="KRS"?"krs":label==="PUBLIC"?"public":"disabled"));
+}
+function setRegion(id,value) { const el=$(id),b=badge(value); el.className=b.className+" big"; el.textContent=b.textContent; }
+function statusBadge(result) { const status=result?.status ?? "error"; return node("span",status==="ok"?"정상":status==="disabled"?"disabled":status==="pending"?"대기":"실패","badge "+(status==="ok"?"ok":status==="disabled"?"disabled":"error")); }
+function ms(value) { return Number.isFinite(value)?value.toFixed(1):"—"; }
+function text(value) { return typeof value==="string"?value:JSON.stringify(value ?? null,null,2); }
+function observe(key,value,title) {
+  if(!["KRC","KRS"].includes(value)) return;
+  if(state[key]!==value) {
+    const previous=state[key]; state[key]=value;
+    state.events.unshift({time:new Date().toISOString(),message:title+": "+(previous?previous+" → ":"초기 관측 ")+value});
+    state.events=state.events.slice(0,20);
+    $("events").replaceChildren(...state.events.map(e=>{const li=node("li");li.append(node("time",e.time),node("span",e.message));return li;}));
+  }
+}
+async function api(path,method="GET") {
+  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),path==="/api/sampledata"?35000:20000);
+  try {
+    const response=await fetch(path,{method,cache:"no-store",signal:controller.signal,headers:{Accept:"application/json"}});
+    if(!response.ok) throw new Error(path+": HTTP "+response.status);
+    return await response.json();
+  } finally { clearTimeout(timer); }
+}
+function serviceCard(key,result) {
+  const card=node("article",undefined,"card"),heading=node("div",undefined,"card-head");
+  heading.append(node("h3",names[key]),statusBadge(result));card.append(heading);
+  const dl=node("dl");
+  for(const [label,value] of [["응답 시간",ms(result.latency_ms)+" ms"],["FQDN",result.fqdn || "—"],["해석 IP",(result.ips||[]).join(", ")||"—"]]) {
+    dl.append(node("dt",label),node("dd",value));
+  }
+  const dd=node("dd");dd.append(badge(result.pe_region));dl.append(node("dt","PE 리전"),dd);card.append(dl);
+  if(result.error) card.append(node("p",result.error,"detail-error"));
+  if(result.dns_error) card.append(node("p","DNS: "+result.dns_error,"detail-error"));
+  return card;
+}
+function renderChecks(payload) {
+  const services=payload.services || payload;
+  $("services").replaceChildren(...Object.keys(names).map(key=>serviceCard(key,services[key]||{status:"error",error:"응답에 서비스 결과가 없습니다."})));
+}
+async function refresh() {
+  if(state.refreshing) return;
+  state.refreshing=true;$("refresh").disabled=true;
+  const errors=[];
+  try {
+    const results=await Promise.allSettled([api("/api/info"),api("/api/tm"),api("/api/check")]);
+    if(results[0].status==="fulfilled") {
+      const info=results[0].value,region=String(info.region).toUpperCase();
+      setRegion("server-region",region);observe("server",region,"응답 리전");
+      $("pod").textContent="Pod: "+(info.pod_name||"—");$("host").textContent="Host: "+(info.host||"—");
+      $("storage-mode").textContent="Storage 읽기: "+(info.storage_read_mode||"—");
+      $("updated").textContent="마지막 갱신: "+(info.time||new Date().toISOString());
+    } else { setRegion("server-region","오류");errors.push(String(results[0].reason)); }
+    if(results[1].status==="fulfilled") {
+      const tm=results[1].value,region=String(tm.region||"UNKNOWN").toUpperCase();
+      setRegion("tm-region",region);observe("tm",region,"TM 안내 리전");
+      $("tm-details").textContent=(tm.fqdn||"TM_FQDN 미설정")+" → "+(tm.ips||[]).join(", ")+" | CNAME: "+(tm.cname_chain||[]).map(text).join(" → ")+(tm.error?" | "+tm.error:"");
+    } else { setRegion("tm-region","오류");errors.push(String(results[1].reason)); }
+    if(results[2].status==="fulfilled") renderChecks(results[2].value);
+    else { renderChecks({});errors.push(String(results[2].reason)); }
+    const server=$("server-region").textContent,tm=$("tm-region").textContent;
+    $("cache-warning").hidden=!(["KRC","KRS"].includes(server)&&["KRC","KRS"].includes(tm)&&server!==tm);
+    $("notice").textContent=errors.join(" · ");
+  } finally {state.refreshing=false;$("refresh").disabled=false;}
+}
+function renderOperation(kind,payload) {
+  const services=payload.services||{},rows=[];
+  for(const [key,result] of Object.entries(services)) {
+    const tr=node("tr"),cell=node("td"),detail=node("td");
+    cell.append(statusBadge(result));detail.append(node("pre",result.error||text(result.data)));
+    tr.append(node("td",kind+" / "+(names[key]||(key==="storage"?"Storage":key))),cell,node("td",ms(result.latency_ms)),detail);rows.push(tr);
+  }
+  if(!rows.length) {const tr=node("tr"),td=node("td");td.colSpan=4;td.append(node("pre",text(payload)));tr.append(td);rows.push(tr);}
+  $("results").replaceChildren(...rows);
+  $("operation-summary").textContent=kind+" · "+new Date().toISOString()+" · "+(payload.status||"응답 수신")+(payload.read_only?" · Blob primary 쓰기 실패(read_only=true). 다른 서비스 결과를 개별 확인하세요.":"")+(payload.record?" · ID "+payload.record.id:"");
+}
+function renderSamples(payload) {
+  const summary=$("sample-summary");summary.replaceChildren();
+  summary.append(node("span","Last Sync Time: "+(payload.last_sync_time||"미확인")),node("span","Manifest 종료: "+(payload.manifest_end_time||"미확인")),
+    node("span","복제 완료: "+(payload.replication_complete===true?"완료":payload.replication_complete===false?"진행 중":"미확인")));
+  const rows=[];
+  for(const key of ["primary","secondary"]) {
+    const r=payload[key]||{},tr=node("tr"),status=node("td");status.append(statusBadge(r));
+    const bytes=r.total_bytes??((r.large?.bytes??0)+(r.small?.bytes??0));
+    tr.append(node("td",key),status,node("td",r.large?.count??"—"),node("td",r.small?.count??"—"),
+      node("td",r.status==="ok"?(bytes/1024**3).toFixed(3):"—"),node("td",ms(r.read_1mb_ms)),
+      node("td",r.cached?"사용 ("+Math.round(r.cache_age_seconds||0)+"초)":"새 조회"));
+    rows.push(tr);
+  }
+  $("sample-rows").replaceChildren(...rows);$("raw-samples").textContent=text(payload);
+  if(payload.error) $("notice").textContent=payload.error;
+}
+async function operation(button,path,kind,method="GET") {
+  $(button).disabled=true;
+  try {
+    $("notice").textContent=kind+" 진행 중…";
+    const result=await api(path,method);
+    if(button==="sample") renderSamples(result); else renderOperation(kind,result);
+    $("notice").textContent=result.error||"";
+  } catch(error) {$("notice").textContent=kind+" 실패: "+error.message;}
+  finally {$(button).disabled=false;}
+}
+$("refresh").addEventListener("click",refresh);
+$("write").addEventListener("click",()=>operation("write","/api/write","쓰기","POST"));
+$("read").addEventListener("click",()=>operation("read","/api/read","읽기"));
+$("sample").addEventListener("click",()=>operation("sample","/api/sampledata","샘플 데이터"));
+setInterval(()=>{if($("auto").checked) refresh();},10000);
+renderChecks({services:Object.fromEntries(Object.keys(names).map(key=>[key,{status:"pending"}]))});
+refresh();
+</script>
+</body>
+</html>

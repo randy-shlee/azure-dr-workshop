@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: drtest-app
+  namespace: drtest
+  annotations:
+    service.beta.kubernetes.io/azure-load-balancer-resource-group: REPLACED_BY_REGIONAL_OVERLAY
+    service.beta.kubernetes.io/azure-pip-name: REPLACED_BY_REGIONAL_OVERLAY
+    # AKS rejects loadBalancerSourceRanges together with allowed-service-tags.
+    # User approved the supported NSG-only annotation combination instead:
+    # https://learn.microsoft.com/azure/aks/configure-load-balancer-standard
+    service.beta.kubernetes.io/azure-allowed-service-tags: AzureTrafficManager
+    service.beta.kubernetes.io/azure-allowed-ip-ranges: 192.0.2.1/32
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  selector:
+    app: drtest-app
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8000

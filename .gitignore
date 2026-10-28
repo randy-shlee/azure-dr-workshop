@@ -1,0 +1,12 @@
+.state/
+drill-log-*.csv
+infra/main.json
+infra/main.parameters.json
+k8s/overlays/
+*.secret
+.venv/
+__pycache__/
+.pytest_cache/
+.azure/
+.vscode/
+.github/agents/
