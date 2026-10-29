@@ -1,0 +1,111 @@
+# Rendered only by scripts/azure-docker-engine.ps1. No credentials belong here.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: azure-docker-engine
+  namespace: drtest
+  labels:
+    app: azure-docker-engine
+    app.kubernetes.io/managed-by: aztemplate-docker-engine
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: azure-docker-engine
+  template:
+    metadata:
+      labels:
+        app: azure-docker-engine
+        azure.workload.identity/use: "true"
+        app.kubernetes.io/managed-by: aztemplate-docker-engine
+    spec:
+      serviceAccountName: drtest-app
+      automountServiceAccountToken: false
+      nodeSelector:
+        kubernetes.io/os: linux
+        kubernetes.io/arch: amd64
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: engine
+          image: docker:27.5.1-dind
+          args: ["--storage-driver=overlay2", "--mtu=1400"]
+          securityContext:
+            privileged: true
+          env:
+            - name: DOCKER_TLS_CERTDIR
+              value: /certs
+            - name: DOCKER_TLS_SAN
+              value: "IP:__PUBLIC_IP__"
+          ports:
+            - name: docker-tls
+              containerPort: 2376
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -ec
+                - docker --host=tcp://localhost:2376 --tlsverify --tlscacert=/certs/client/ca.pem --tlscert=/certs/client/cert.pem --tlskey=/certs/client/key.pem info >/dev/null
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+              ephemeral-storage: 2Gi
+            limits:
+              cpu: "2"
+              memory: 3Gi
+              ephemeral-storage: 24Gi
+          volumeMounts:
+            - name: certificates
+              mountPath: /certs
+            - name: data
+              mountPath: /var/lib/docker
+        - name: registry
+          image: mcr.microsoft.com/azure-cli:2.77.0
+          command: ["python3", "-c", "import time; time.sleep(2147483647)"]
+          securityContext:
+            allowPrivilegeEscalation: false
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          volumeMounts:
+            - name: certificates
+              mountPath: /certs
+              readOnly: true
+      volumes:
+        - name: certificates
+          emptyDir:
+            medium: Memory
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: azure-docker-engine
+  namespace: drtest
+  labels:
+    app.kubernetes.io/managed-by: aztemplate-docker-engine
+  annotations:
+    service.beta.kubernetes.io/azure-load-balancer-resource-group: "__PUBLIC_IP_RG__"
+    service.beta.kubernetes.io/azure-pip-name: "__PUBLIC_IP_NAME__"
+    service.beta.kubernetes.io/azure-shared-securityrule: "false"
+spec:
+  type: LoadBalancer
+  loadBalancerIP: "__PUBLIC_IP__"
+  loadBalancerSourceRanges: ["__CLIENT_CIDR__"]
+  selector:
+    app: azure-docker-engine
+  ports:
+    - name: docker-tls
+      port: 2376
+      targetPort: docker-tls
+      protocol: TCP

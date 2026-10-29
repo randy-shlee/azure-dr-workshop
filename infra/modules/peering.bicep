@@ -1,7 +1,7 @@
 param localVnetName string
 param remoteVnetId string
-resource local 'Microsoft.Network/virtualNetworks@2026-07-01' existing = { name: localVnetName }
-resource peering 'Microsoft.Network/virtualNetworks/virtualNetworkPeerings@2026-07-01' = {
+resource local 'Microsoft.Network/virtualNetworks@2025-05-01' existing = { name: localVnetName }
+resource peering 'Microsoft.Network/virtualNetworks/virtualNetworkPeerings@2025-05-01' = {
   parent: local
   name: 'peer-other-region'
   properties: {

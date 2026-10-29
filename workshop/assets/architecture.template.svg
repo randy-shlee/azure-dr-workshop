@@ -1,0 +1,169 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1580" viewBox="0 0 1600 1580" role="img" aria-labelledby="title description">
+  <title id="title">Azure DR workshop: deployed Korea Central / Korea South architecture</title>
+  <desc id="description">Verified v1.0.7 baseline. Priority DNS, two private AKS clusters, one RA-GRS account, PostgreSQL primary and geo-replica, metadata-only Event Hubs, active-geo Redis, independent Search, one private ACR, regional DNS and 17 private endpoints. DR role transitions have not been executed.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto-start-reverse"><path d="M0 0 L8 4 L0 8 Z" fill="context-stroke"/></marker>
+    <style>
+      text { font-family: "Segoe UI", Arial, sans-serif; fill: #18324b; }
+      .title { font-size: 30px; font-weight: 700; }
+      .region { font-size: 25px; font-weight: 700; }
+      .heading { font-size: 20px; font-weight: 650; }
+      .body { font-size: 16px; }
+      .small { font-size: 14px; fill: #465e73; }
+      .label { font-size: 13px; font-weight: 650; text-anchor: middle; }
+      .card { fill: white; stroke: #c9d6e3; stroke-width: 1.5; }
+      .flow { fill: none; stroke: #0078d4; stroke-width: 2.5; marker-end: url(#arrow); }
+      .dns { fill: none; stroke: #0078d4; stroke-width: 2; stroke-dasharray: 7 6; marker-end: url(#arrow); }
+      .replication { fill: none; stroke: #16846b; stroke-width: 2.5; marker-end: url(#arrow); }
+    </style>
+  </defs>
+  <rect width="1600" height="1580" fill="#f3f6fb"/>
+  <text x="40" y="49" class="title">Azure DR workshop | Korea Central + Korea South</text>
+  <text x="40" y="78" class="body">Verified deployed baseline: drws1028c / v1.0.7 / 2026-10-28. Deployment and data checks passed; DR transitions not yet executed.</text>
+
+  <rect x="40" y="105" width="340" height="135" rx="14" class="card"/>
+  <text x="62" y="138" class="heading">Approved operator / browser</text>
+  <text x="62" y="168" class="body">Local package: one deployment command</text>
+  <text x="62" y="195" class="small">ARM control plane + approved client CIDR</text>
+  <text x="62" y="219" class="small">No public release or local Docker Desktop</text>
+  <path d="M380 170 H418" class="dns"/>
+  <rect x="420" y="105" width="760" height="135" rx="14" fill="#eaf3ff" stroke="#92b9e8"/>
+  <text x="444" y="133" class="small">GLOBAL RESOURCE GROUP</text>
+  <image href="__ICON_traffic-manager__" x="445" y="151" width="58" height="58"/>
+  <text x="522" y="169" class="heading">Azure Traffic Manager | Priority</text>
+  <text x="522" y="196" class="body">KRC priority 1 / KRS priority 2 | both Enabled + Online</text>
+  <text x="522" y="220" class="small">DNS guidance only. The browser sends HTTP directly to the regional public IP.</text>
+  <rect x="1220" y="105" width="340" height="135" rx="14" class="card"/>
+  <text x="1242" y="138" class="heading">Network boundary</text>
+  <text x="1242" y="168" class="body">App HTTP 80: approved IPs + TM probe</text>
+  <text x="1242" y="195" class="small">PaaS / ACR data paths remain private</text>
+  <text x="1242" y="219" class="small">Not a 99:1 active-active routing design</text>
+  <path d="M800 240 V275 H390 V361" class="dns"/>
+  <path d="M800 275 H1210 V361" class="dns"/>
+  <text x="800" y="298" class="label">DASHED BLUE = DNS ANSWER, NOT AN HTTP PROXY PATH</text>
+
+  <rect x="40" y="310" width="700" height="1000" rx="18" fill="#edf5ff" stroke="#8db7e2" stroke-width="2"/>
+  <rect x="860" y="310" width="700" height="1000" rx="18" fill="#fff5ec" stroke="#dfb17e" stroke-width="2"/>
+  <text x="65" y="345" class="region">Korea Central | KRC</text>
+  <text x="885" y="345" class="region">Korea South | KRS</text>
+  <rect x="80" y="365" width="620" height="58" rx="10" class="card"/>
+  <rect x="900" y="365" width="620" height="58" rx="10" class="card"/>
+  <image href="__ICON_load-balancer__" x="95" y="374" width="40" height="40"/>
+  <image href="__ICON_load-balancer__" x="915" y="374" width="40" height="40"/>
+  <text x="150" y="390" class="heading">Public IP + Standard Load Balancer</text>
+  <text x="150" y="412" class="small">Kubernetes Service: LoadBalancer | NSG filtering</text>
+  <text x="970" y="390" class="heading">Public IP + Standard Load Balancer</text>
+  <text x="970" y="412" class="small">Live standby app; reachable for direct regional tests</text>
+  <rect x="65" y="438" width="650" height="175" rx="12" fill="#dcecff" stroke="#8db7e2" stroke-dasharray="6 4"/>
+  <rect x="885" y="438" width="650" height="175" rx="12" fill="#ffead5" stroke="#dfb17e" stroke-dasharray="6 4"/>
+  <path d="M250 423 V470" class="flow"/>
+  <path d="M1070 423 V470" class="flow"/>
+  <text x="82" y="460" class="small">VNET 10.10.0.0/16 | PRIVATE AKS API</text>
+  <text x="902" y="460" class="small">VNET 10.20.0.0/16 | PRIVATE AKS API</text>
+  <rect x="85" y="472" width="330" height="110" rx="10" class="card"/>
+  <rect x="905" y="472" width="330" height="110" rx="10" class="card"/>
+  <image href="__ICON_aks__" x="100" y="489" width="48" height="48"/>
+  <image href="__ICON_aks__" x="920" y="489" width="48" height="48"/>
+  <image href="__ICON_managed-identity__" x="110" y="546" width="24" height="24"/>
+  <image href="__ICON_managed-identity__" x="930" y="546" width="24" height="24"/>
+  <text x="160" y="499" class="heading">Azure Kubernetes Service</text>
+  <text x="160" y="525" class="body">2 x D4s_v5 | Ready app</text>
+  <text x="150" y="562" class="small">App + sample Workload Identity</text>
+  <text x="980" y="499" class="heading">Azure Kubernetes Service</text>
+  <text x="980" y="525" class="body">2 x D4s_v5 | Ready app</text>
+  <text x="970" y="562" class="small">Regional app + shared sample MI</text>
+  <path d="M415 527 H443" class="flow"/>
+  <path d="M1235 527 H1263" class="flow"/>
+  <rect x="445" y="472" width="250" height="110" rx="10" class="card"/>
+  <rect x="1265" y="472" width="250" height="110" rx="10" class="card"/>
+  <image href="__ICON_private-endpoint__" x="461" y="485" width="35" height="35"/>
+  <image href="__ICON_private-dns__" x="505" y="485" width="35" height="35"/>
+  <image href="__ICON_private-endpoint__" x="1281" y="485" width="35" height="35"/>
+  <image href="__ICON_private-dns__" x="1325" y="485" width="35" height="35"/>
+  <text x="459" y="544" class="body">8 PEs + regional Private DNS</text>
+  <text x="459" y="567" class="small">Both EH namespaces reachable</text>
+  <text x="1279" y="544" class="body">9 PEs + regional Private DNS</text>
+  <text x="1279" y="567" class="small">Includes Blob secondary PE</text>
+  <path d="M717 534 H883" class="flow" marker-start="url(#arrow)"/>
+  <text x="800" y="515" class="label">GLOBAL VNET PEERING</text>
+  <text x="80" y="635" class="small">MANAGED PAAS BELOW: ACCESSED VIA PE, NOT HOSTED INSIDE THE VNET</text>
+  <text x="900" y="635" class="small">SAME STABLE BLOB PRIMARY / PG WRITER / EH ALIAS FROM BOTH APPS</text>
+
+  <rect x="80" y="650" width="620" height="72" rx="10" class="card"/>
+  <rect x="900" y="650" width="620" height="72" rx="10" class="card"/>
+  <image href="__ICON_storage__" x="97" y="663" width="45" height="45"/>
+  <image href="__ICON_storage__" x="917" y="663" width="45" height="45"/>
+  <text x="160" y="679" class="heading">Blob Storage | ONE Standard_RAGRS account</text>
+  <text x="160" y="705" class="body">Primary: read / write | 10 GB sample payload cap</text>
+  <text x="980" y="679" class="heading">Same account | paired regional replica</text>
+  <text x="980" y="705" class="body">Read-only secondary | NOT a second Storage account</text>
+  <path d="M710 685 H890" class="replication"/>
+  <text x="800" y="710" class="label">ASYNC RA-GRS</text>
+
+  <rect x="80" y="740" width="620" height="72" rx="10" class="card"/>
+  <rect x="900" y="740" width="620" height="72" rx="10" class="card"/>
+  <image href="__ICON_postgres__" x="97" y="753" width="45" height="45"/>
+  <image href="__ICON_postgres__" x="917" y="753" width="45" height="45"/>
+  <text x="160" y="769" class="heading">Azure Database for PostgreSQL | Primary</text>
+  <text x="160" y="795" class="body">General Purpose | stable writer / reader aliases</text>
+  <text x="980" y="769" class="heading">PostgreSQL | GeoAsyncReplica</text>
+  <text x="980" y="795" class="body">Read-only replica | planned switchover / switchback</text>
+  <path d="M710 775 H890" class="replication"/>
+  <text x="800" y="800" class="label">ASYNC REPLICA</text>
+
+  <rect x="80" y="830" width="620" height="72" rx="10" class="card"/>
+  <rect x="900" y="830" width="620" height="72" rx="10" class="card"/>
+  <image href="__ICON_event-hubs__" x="97" y="843" width="45" height="45"/>
+  <image href="__ICON_event-hubs__" x="917" y="843" width="45" height="45"/>
+  <text x="160" y="859" class="heading">Event Hubs Standard | Primary | 1 TU</text>
+  <text x="160" y="885" class="body">Geo-DR alias points to KRC at baseline</text>
+  <text x="980" y="859" class="heading">Event Hubs Standard | Secondary | 1 TU</text>
+  <text x="980" y="885" class="body">Old event payloads do NOT replicate to this namespace</text>
+  <path d="M710 865 H890" fill="none" stroke="#c77b18" stroke-width="2.5" stroke-dasharray="5 4" marker-end="url(#arrow)"/>
+  <text x="800" y="890" class="label">METADATA ONLY</text>
+
+  <rect x="80" y="920" width="620" height="72" rx="10" class="card"/>
+  <rect x="900" y="920" width="620" height="72" rx="10" class="card"/>
+  <image href="__ICON_redis__" x="97" y="933" width="45" height="45"/>
+  <image href="__ICON_redis__" x="917" y="933" width="45" height="45"/>
+  <text x="160" y="949" class="heading">Azure Managed Redis | KRC</text>
+  <text x="160" y="975" class="body">Regional TLS client endpoint | active geo</text>
+  <text x="980" y="949" class="heading">Azure Managed Redis | KRS</text>
+  <text x="980" y="975" class="body">Regional TLS client endpoint | active geo</text>
+  <path d="M712 955 H888" class="replication" marker-start="url(#arrow)"/>
+  <text x="800" y="980" class="label">ACTIVE GEO</text>
+
+  <rect x="80" y="1010" width="620" height="72" rx="10" class="card"/>
+  <rect x="900" y="1010" width="620" height="72" rx="10" class="card"/>
+  <image href="__ICON_search__" x="97" y="1023" width="45" height="45"/>
+  <image href="__ICON_search__" x="917" y="1023" width="45" height="45"/>
+  <text x="160" y="1039" class="heading">Azure AI Search | KRC</text>
+  <text x="160" y="1065" class="body">Independent dr-samples index</text>
+  <text x="980" y="1039" class="heading">Azure AI Search | KRS</text>
+  <text x="980" y="1065" class="body">Independent dr-samples index</text>
+  <text x="800" y="1049" class="label">NO GEO REPLICATION</text>
+
+  <rect x="80" y="1110" width="620" height="72" rx="10" class="card"/>
+  <image href="__ICON_acr__" x="97" y="1123" width="45" height="45"/>
+  <text x="160" y="1139" class="heading">Azure Container Registry | one private registry</text>
+  <text x="160" y="1165" class="body">Exact same package image in both AKS clusters | kubelet AcrPull</text>
+  <rect x="900" y="1110" width="620" height="72" rx="10" class="card"/>
+  <text x="920" y="1139" class="heading">KRS pulls the KRC registry through Private Link</text>
+  <text x="920" y="1165" class="body">No second registry / no ACR geo-replication in this baseline</text>
+  <rect x="80" y="1200" width="620" height="72" rx="10" class="card"/>
+  <image href="__ICON_log-analytics__" x="97" y="1213" width="45" height="45"/>
+  <text x="160" y="1229" class="heading">Log Analytics workspace + Azure Monitor PLS</text>
+  <text x="160" y="1255" class="body">Deployed in KRC RG | monitor PE in both VNets</text>
+  <rect x="900" y="1200" width="620" height="72" rx="10" class="card"/>
+  <text x="920" y="1229" class="heading">Regional Private DNS and managed identities</text>
+  <text x="920" y="1255" class="body">Shared sample identity trusts both AKS OIDC issuers</text>
+
+  <rect x="40" y="1335" width="1520" height="100" rx="14" fill="#e7f2ef" stroke="#8cbcac"/>
+  <text x="62" y="1367" class="heading">One-command local deployment - no public release dependency</text>
+  <text x="62" y="1395" class="body">SHA verification - infrastructure - temporary mTLS builder - private image push - both apps - CLI 10 GB samples - replication / reads - smoke</text>
+  <text x="62" y="1419" class="small">Temporary builder, port 2376 rule, added push grant and certificates are REMOVED after transfer. No cloud Automation in this deployed path.</text>
+  <rect x="40" y="1450" width="1520" height="87" rx="14" fill="#fff3df" stroke="#d7b678"/>
+  <text x="62" y="1481" class="heading">Planned DR is a separate approved exercise - NOT part of deployment validation</text>
+  <text x="62" y="1508" class="body">To KRS: Storage - EH - PG - TM. Back to KRC app: Storage - PG - EH active check - TM. EH stays in KRS; no former-primary failback.</text>
+  <text x="40" y="1564" class="small">Official Microsoft Azure icons (V24), used unchanged for architecture/training. Logical diagram; see architecture.md for scope, resource inventory and safety gates.</text>
+</svg>

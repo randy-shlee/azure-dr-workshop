@@ -10,3 +10,17 @@ __pycache__/
 .azure/
 .vscode/
 .github/agents/
+.copilot-azure/
+private/
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+*.pem
+*.key
+*.pfx
+*.p12
+.coverage
+htmlcov/
+/DeployToAzure_lab/

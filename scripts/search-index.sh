@@ -22,6 +22,7 @@ az login --service-principal --username \"$AZURE_CLIENT_ID\" --tenant \"$AZURE_T
 token=$(az account get-access-token --resource https://search.azure.com --query accessToken -o tsv)
 index=$(printf \"%s\" \"{\\\"name\\\":\\\"dr-samples\\\",\\\"fields\\\":[{\\\"name\\\":\\\"id\\\",\\\"type\\\":\\\"Edm.String\\\",\\\"key\\\":true},{\\\"name\\\":\\\"region\\\",\\\"type\\\":\\\"Edm.String\\\",\\\"filterable\\\":true},{\\\"name\\\":\\\"title\\\",\\\"type\\\":\\\"Edm.String\\\",\\\"searchable\\\":true},{\\\"name\\\":\\\"content\\\",\\\"type\\\":\\\"Edm.String\\\",\\\"searchable\\\":true}]}\")
 curl --fail-with-body --silent --show-error --retry 8 --retry-all-errors --retry-delay 15 --connect-timeout 10 --max-time 60 -X PUT -H \"Authorization: Bearer $token\" -H \"Content-Type: application/json\" \"$SEARCH_ENDPOINT/indexes/dr-samples?api-version=2025-09-01\" --data \"$index\"
+echo
 docs=$(printf \"{\\\"value\\\":[{\\\"@search.action\\\":\\\"mergeOrUpload\\\",\\\"id\\\":\\\"seed-%s\\\",\\\"region\\\":\\\"%s\\\",\\\"title\\\":\\\"DR smoke test\\\",\\\"content\\\":\\\"Independently seeded regional index; this is not index replication.\\\"}]}\" \"$REGION\" \"$REGION\")
 curl --fail-with-body --silent --show-error --retry 8 --retry-all-errors --retry-delay 15 --connect-timeout 10 --max-time 60 -X POST -H \"Authorization: Bearer $token\" -H \"Content-Type: application/json\" \"$SEARCH_ENDPOINT/indexes/dr-samples/docs/index?api-version=2025-09-01\" --data \"$docs\" > /work/result.json
 python3 -c \"import json; d=json.load(open(\\\"/work/result.json\\\")); assert d[\\\"value\\\"] and all(i.get(\\\"status\\\") is True for i in d[\\\"value\\\"]), d\"
@@ -32,7 +33,7 @@ echo SEARCH_INDEX_VERIFIED
   aks_run "$key" "kubectl create namespace drtest --dry-run=client -o yaml | kubectl apply -f -; \
 kubectl apply -f search-serviceaccount.json; \
 kubectl -n drtest delete job search-index-init --ignore-not-found=true --wait=true; \
-kubectl apply -f search-index-job.json" --file "$STATE_DIR/search-serviceaccount.json" "$STATE_DIR/search-index-job.json"
+kubectl apply -f search-index-job.json" --file "$STATE_DIR/search-serviceaccount.json" --file "$STATE_DIR/search-index-job.json"
   wait_job "$key" search-index-init 2100 | tee "$STATE_DIR/search-$region.log"
   grep -q '^SEARCH_INDEX_VERIFIED' "$STATE_DIR/search-$region.log" || die "Search $region initialization did not verify per-document status."
 done

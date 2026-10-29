@@ -9,7 +9,7 @@ param backendAddress string
 
 // Required only when explicitly selected: WAF requires WAF_v2. Capacity 1,
 // no zones/autoscale; this optional path costs much more than an AKS public LB.
-resource pip 'Microsoft.Network/publicIPAddresses@2026-07-01' = {
+resource pip 'Microsoft.Network/publicIPAddresses@2025-05-01' = {
   name: 'pip-${prefix}-appgw-${region}'
   location: location
   tags: tags
@@ -21,7 +21,7 @@ resource pip 'Microsoft.Network/publicIPAddresses@2026-07-01' = {
 }
 var gatewayName = 'agw-${prefix}-${region}'
 var gatewayId = resourceId('Microsoft.Network/applicationGateways', gatewayName)
-resource policy 'Microsoft.Network/ApplicationGatewayWebApplicationFirewallPolicies@2026-07-01' = {
+resource policy 'Microsoft.Network/ApplicationGatewayWebApplicationFirewallPolicies@2025-05-01' = {
   name: 'waf-${prefix}-${region}'
   location: location
   tags: tags
@@ -55,7 +55,7 @@ resource policy 'Microsoft.Network/ApplicationGatewayWebApplicationFirewallPolic
     ]
   }
 }
-resource gateway 'Microsoft.Network/applicationGateways@2026-07-01' = {
+resource gateway 'Microsoft.Network/applicationGateways@2025-05-01' = {
   name: gatewayName
   location: location
   tags: tags

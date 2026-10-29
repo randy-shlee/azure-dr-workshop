@@ -13,7 +13,7 @@ var zones = [
   'privatelink.blob.${environment().suffixes.storage}'
 ]
 // Required to keep the workspace data plane private as well as application PaaS.
-resource endpoint 'Microsoft.Network/privateEndpoints@2026-07-01' = {
+resource endpoint 'Microsoft.Network/privateEndpoints@2025-05-01' = {
   name: 'pe-${prefix}-monitor-${region}'
   location: location
   tags: tags
@@ -24,7 +24,7 @@ resource endpoint 'Microsoft.Network/privateEndpoints@2026-07-01' = {
     ]
   }
 }
-resource zoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2026-07-01' = {
+resource zoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2025-05-01' = {
   parent: endpoint
   name: 'default'
   properties: {

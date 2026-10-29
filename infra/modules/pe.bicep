@@ -6,7 +6,7 @@ param targetId string
 param groupId string
 param dnsZoneId string
 
-resource endpoint 'Microsoft.Network/privateEndpoints@2026-07-01' = {
+resource endpoint 'Microsoft.Network/privateEndpoints@2025-05-01' = {
   name: name
   location: location
   tags: tags
@@ -21,7 +21,7 @@ resource endpoint 'Microsoft.Network/privateEndpoints@2026-07-01' = {
     ]
   }
 }
-resource dns 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2026-07-01' = {
+resource dns 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2025-05-01' = {
   parent: endpoint
   name: 'default'
   properties: {
@@ -29,5 +29,9 @@ resource dns 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2026-07-01
   }
 }
 output id string = endpoint.id
-resource nic 'Microsoft.Network/networkInterfaces@2026-07-01' existing = { name: '${name}-nic' }
-output privateIp string = nic.properties.ipConfigurations[0].properties.privateIPAddress
+module address 'pe-nic.bicep' = {
+  name: '${name}-address'
+  params: { name: '${name}-nic' }
+  dependsOn: [endpoint]
+}
+output privateIp string = address.outputs.privateIp

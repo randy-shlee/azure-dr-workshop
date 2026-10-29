@@ -1,115 +1,77 @@
-# Lab 02. 샘플 데이터와 private 복제 읽기
+# Lab 02. 10 GB·복제·실제 보조 읽기
 
-[이전](01-infrastructure.md) · [목차](../README.md) · [다음](03-build.md)
+[이전](01-infrastructure.md) · [목차](../README.md) · [다음: 패키지 해설](03-build.md)
 
-## 2-1. 어디서 데이터를 올리는지 확인
+## 2-1. 자동 샘플과 업로드 버튼
 
-Lab 01의 deploy는 KRC AKS 안에서 Workload Identity Job으로 업로드합니다.
-PC/deploymentScripts가 Storage에 데이터를 보내지 않습니다. 읽을 소스:
+기본 단일 배포 명령은 앱 준비 후 **KRC sampledata-upload Job → 복제 fence →
+KRS sampledata-verify Job**을 실행합니다. 정상 환경을 관찰하려고 Job을 재생성하지 않습니다.
+별도 cloud Automation/부트스트랩 ConfigMap을 완료 기준으로 쓰지 않습니다.
 
-- [Job](../../k8s/jobs/sampledata-upload.yaml)
-- [업로드 실행기](../../scripts/upload-sampledata.sh)
-- [업로드/검증 프로그램](../../scripts/sampledata-program.sh)
+코드: [Job](../../k8s/jobs/sampledata-upload.yaml), [실행기](../../scripts/upload-sampledata.sh),
+[프로그램](../../scripts/sampledata-program.sh), [공유 layout](../../app/sample_layout.py),
+[버튼 worker](../../app/sample_upload.py).
+CLI/양 앱은 같은 Blob lease를 사용합니다. 샘플 MI는 양 AKS OIDC issuer의
+`system:serviceaccount:drtest:sampledata-upload`를 신뢰합니다.
 
-AZCOPY bench 옵션/인증 버전 차이 대신 현재 구현은 스트림/작은 파일 배치를 사용하며
-기존 올바른 크기의 blob을 건너뜁니다. 파일 수/용량 검증 후에만
-`sampledata/_manifest.json`을 기록합니다.
+| 기본 데이터 파일 | 수 / 크기 |
+|---|---|
+| large | 1 GiB 7개 + 386,655,232 bytes 1개 |
+| small | 1 MiB 2,000개 |
+| 합계 | **2,008개 / 10,000,000,000 bytes** |
 
-새 터미널은 [환경 복원](01-infrastructure.md#새-터미널에서-복원)을 먼저 수행합니다.
+manifest/control JSON은 payload 수/크기에 더하지 않습니다.
+버튼은 서버 생성·업로드/재개이며 PC 파일 선택 기능이 아닙니다.
+CLI와 버튼 모두 고정 상한 decimal 10 GB를 넘길 수 없고, 올바른 기존 파일을 재사용합니다.
+기존 다른 manifest/잘못된 크기의 데이터는 명시적으로 실패하고 자동 삭제하지 않습니다.
+
+## 2-2. 실행 결과
+
+[환경 복원](01-infrastructure.md#새-터미널에서-복원) 후:
 
 ```bash
 jq '.sampleData' "$CONFIG_FILE"
-aks_run primary 'kubectl -n drtest get job,pods'
-az storage account show --ids "$(cfg '.primary.storage.id')" \
-  --expand geoReplicationStats \
-  --query '{secondary:secondaryLocation,replication:geoReplicationStats}' -o json
-```
-
-`.sampleData.skip`은 false여야 합니다. true로 사전 배포된 환경이면 강사와
-훈련 전 파라미터를 재검토하세요. 파일의 skip 값만 편집해 배포를 완료한 것으로
-꾸미지 않습니다.
-
-## 2-2. Job / manifest / 복제 결과 확인
-
-```bash
-aks_run primary 'kubectl -n drtest logs job/sampledata-upload -c upload --tail=20'
+aks_run primary 'kubectl -n drtest get job sampledata-upload'
 aks_run secondary 'kubectl -n drtest get job sampledata-verify'
-aks_run primary 'kubectl -n drtest get configmap workshop-bootstrap-status -o json'
+aks_run primary 'kubectl -n drtest logs job/sampledata-upload -c upload --tail=20'
+aks_run secondary 'kubectl -n drtest logs job/sampledata-verify -c upload --tail=20'
 ```
 
-정상 업로드 로그에는 `UPLOAD_MANIFEST`, 정상 secondary 검증 로그에는
-`SECONDARY_READ_VERIFIED`가 있습니다. Job가 아직 생성되지 않았다면 현재
-부트스트랩 단계가 어디인지 먼저 확인하세요. 앱 준비 뒤 샘플을 시작합니다.
-없는 Job를 정상으로 기록하지 않습니다. manifest는 업로드 로그 또는
-브라우저 `/api/sampledata`에서 확인합니다. 포털 경로의 로컬 PC에
-`upload-manifest.json`이 자동 복사되지는 않습니다.
+`skip=false`, 양 Job Complete, `UPLOAD_MANIFEST`와 `SECONDARY_READ_VERIFIED`를 봅니다.
+그다음 **양 지역 앱의 샘플 데이터 확인**에서 모두 확인합니다.
 
-포털 자동화의 시작/종료/오류 CSV는 KRC ConfigMap에도 보관합니다.
-실제 복제 완료 시각을 이후 DR 관측 CSV와 비교할 수 있습니다.
+- primary/secondary의 실제 전체 수/크기 = 2,008개/10 GB.
+- 양 manifest 종료 fence 일치, 실제 1 MiB range 읽기 성공.
+- Last Sync Time ≥ 최종 manifest 종료, `replication_complete=true`.
 
-```bash
-aks_run primary 'kubectl -n drtest get configmap workshop-bootstrap-log -o json' \
-  | jq -r '.data["drill.csv"]' >"$STATE_DIR/bootstrap-drill.csv"
-```
+CLI manifest는 `actualFileCount/actualBytes`, 버튼 manifest는 `count/bytes`를 표시합니다.
+필드 이름을 혼동하지 말고 실제 inventory도 함께 대조합니다.
+예: `curl --fail --silent --show-error "http://$(cfg '.primary.publicIp.fqdn')/api/sampledata" | jq .`
+HTTP 200이나 `test-app.sh` 성공만으로 복제 완료를 판정하지 않습니다.
 
-업로드 스크립트는 기본 10분 간격으로 Last Sync Time을 확인하고,
-manifest 업로드 이후의 fence 시각에 도달하면 KRS Job에서 파일 목록/실제 range 읽기를 검증합니다.
-기본 복제 대기 상한은 48시간으로, 수업 내 완료를 보장하지 않습니다.
-시각은 업로드 시작/끝, Last Sync Time, 관측한 복제 완료 시각을 각각 기록합니다.
+## 2-3. 버튼 재개와 캐시
 
-업로드 또는 검증 실패 후 원인을 해결하고, 기존 bootstrap Job이 더 이상 실행 중이
-아닌지 강사가 확인했을 때만 다음으로 재개합니다. 동시 재실행하지 않습니다.
-성공한 Job를 관찰하려고 매번 재실행할 필요는 없습니다.
+자동 생성된 동일 layout에서도 버튼 재개를 체험할 수 있습니다.
+확인 후 시작 → 진행/오류 조회 → completed → **새 manifest fence의 복제 재확인** 순서입니다.
+목록은 endpoint별 **300초 캐시**, Last Sync Time과 업로드 완료는 별도 상태입니다.
+다른 앱의 오래된 manifest/집계가 남으면 5분 뒤 다시 확인합니다.
+복제 대기는 실행기 기본 최대 48시간이며 수업 내 완료를 보장하지 않습니다.
 
-```bash
-# 실패 복구용: 올바른 기존 파일은 건너뛰고 manifest/replication을 다시 검증
-bash scripts/upload-sampledata.sh
-```
+기존 `drws1028a`의 과거 초과 샘플은 보존하고 새 상한 검증에는 별도 컨테이너를 사용했습니다.
+재실행/다른 컨테이너 선택은 강사가 실제 설정과 lease/Job 상태를 확인한 후에만 수행합니다.
 
-현재 layout과 다른 manifest, 잘못된 크기의 기존 파일은 오류입니다.
-10GiB → 100GiB 확장은 기존 container에 덮어쓰는 실습이 아닙니다.
-대량 실험은 별도 승인한 새 환경/prefix에서 100/20,000 설정으로 시작하세요.
+## 2-4. 사설 DNS와 Search
 
-## 2-3. KRS secondary DNS 레코드 확인
+이 단계의 `-secondary`는 **첫 전환 전 복제 probe**입니다. 전환 후 일반 읽기 경로가 아닙니다.
+Pod의 실제 해석은 [Lab 05](05-baseline.md)에서 확인하며 PC nslookup으로 대체하지 않습니다.
+Blob은 KRC 생성 계정 하나이고 두 VNet PE는 같은 계정의 접근 지점입니다.
 
-```bash
-ACCOUNT="$(cfg '.primary.storage.name')"
-KRS_RG="$(cfg '.secondaryResourceGroup')"
-az network private-dns record-set a show -g "$KRS_RG" \
-  -z privatelink.blob.core.windows.net -n "${ACCOUNT}-secondary" \
-  --query aRecords -o json
-```
-
-KRS VNet 전용 zone의 `<account>-secondary`가 10.20.* PE를 가리켜야 합니다.
-PC에서 nslookup한 결과로 Pod의 사설 DNS를 판정하지 않습니다.
-Pod 내부 실제 조회는 앱 배포 후 Lab 05에서 수행합니다.
-KRC 별도 zone은 secondary 조회를 위해 KRS PE 주소를 명시적으로 갖고 있으며,
-global peering을 경유합니다. zone 자체를 두 VNet에 공유하지 않습니다.
-
-**Storage 계정 failover는 하지 않습니다.** 이 과정은 RA-GRS secondary 읽기이며
-계정 쓰기 리전은 계속 KRC입니다. 계정 failover/failback 시간 및 위험을
-TM/PG/EH 전환과 혼동하지 마세요.
-
-## 2-4. Search 초기화
-
-포털의 full 자동 배포는 앱 배포 전에 Search를 초기화합니다.
-아래는 인덱스 복구가 필요하고 bootstrap이 더 이상 실행 중이지 않을 때만 실행합니다.
-
-```bash
-if enabled '.features.deployAiSearch'; then
-  bash scripts/search-index.sh
-else
-  printf 'Search disabled: index lab excluded.\n'
-fi
-```
-
-인덱스는 양 리전에 독립적으로 `dr-samples`를 만듭니다.
-두 Search의 문서가 자동 geo-replication된다고 설명하지 않습니다.
+양 `dr-samples` Search 인덱스는 앱 배포 전에 자동 초기화합니다.
+독립 인덱스이므로 이후 문서가 자동 geo-replication된다고 설명하지 않습니다.
+`search-index.sh`/`upload-sampledata.sh`는 정상 배포 뒤 필수 재실행 단계가 아니라 승인된 복구용입니다.
 
 ## 완료 게이트
 
-- [ ] 실제 파일 수/용량과 manifest 확인
-- [ ] Last Sync Time/fence 및 KRS 검증 Job의 실제 읽기 성공 확인
-- [ ] Storage secondary 위치와 KRS private DNS 레코드 확인
-- [ ] Search 초기화 또는 승인된 disabled 상태 구별
-- [ ] 미완료 복제는 보류로 기록하고 전환 실습을 시작하지 않음
+- [ ] CLI Job와 실제 양 앱의 manifest/파일/용량·읽기/fence 확인
+- [ ] 버튼 재개 후 새 fence와 캐시를 구별
+- [ ] 복제 미완료/오류면 DR 보류, 기존 데이터 보존

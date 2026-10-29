@@ -22,14 +22,16 @@ parser.add_argument("--aks-vm-size", default="Standard_D4s_v5")
 parser.add_argument("--aks-node-count", type=int, default=2, help="Nodes PER region (default: two)")
 parser.add_argument("--pg-sku", default="Standard_D2ds_v5")
 parser.add_argument("--pg-storage-gb", type=int, default=32)
-parser.add_argument("--storage-gb", type=float, default=100)
+parser.add_argument("--storage-gb", type=float, default=10)
 parser.add_argument("--storage-write-ops", type=int, default=100000)
 parser.add_argument("--storage-read-ops", type=int, default=100000)
 parser.add_argument("--dns-queries", type=int, default=1000000)
 parser.add_argument("--log-gb", type=float, default=1, help="Log ingestion GB per workspace")
 parser.add_argument("--no-event-hubs", action="store_true")
-parser.add_argument("--no-event-hubs-geo", action="store_true",
-                    help="Bill one Premium namespace PU only; keep private endpoints in both regions")
+parser.add_argument("--no-event-hubs-georecovery", action="store_true",
+                    help="Disable metadata pairing; both Standard namespaces and all four private endpoints are still billed")
+parser.add_argument("--event-hubs-ingress-events", type=int, default=1000000,
+                    help="Billable 64KiB ingress-event units PER namespace over the estimated period, not replicated data")
 parser.add_argument("--dns-resolver", action="store_true",
                     help="Include two regional DNS Private Resolver inbound endpoints; no outbound endpoints/rules")
 parser.add_argument("--no-redis", action="store_true")
@@ -47,7 +49,7 @@ parser.add_argument("--strict", action="store_true", help="Exit 2 if any estimat
 args = parser.parse_args()
 if args.hours <= 0 or args.aks_node_count < 2:
     parser.error("hours must be positive; AKS system pools require at least two nodes per region")
-if min(args.pg_storage_gb, args.storage_gb, args.storage_write_ops, args.storage_read_ops, args.dns_queries, args.log_gb) < 0:
+if min(args.pg_storage_gb, args.storage_gb, args.storage_write_ops, args.storage_read_ops, args.dns_queries, args.log_gb, args.event_hubs_ingress_events) < 0:
     parser.error("Quantities cannot be negative")
 currency = args.currency.upper()
 offline = json.loads(pathlib.Path(args.catalog).read_text()) if args.catalog else None
@@ -149,10 +151,12 @@ for region in ("koreacentral", "koreasouth"):
         skuName="2 vCore", meterName="vCore")
     add("PostgreSQL provisioned storage", region, "Azure Database for PostgreSQL", args.pg_storage_gb*hours/730, "1 GB/Month",
         productName="Azure Database for PostgreSQL Flex Server Storage", skuName="Storage", meterName="Storage Data Stored")
-    if not args.no_event_hubs and (region == "koreacentral" or not args.no_event_hubs_geo):
-        add("Event Hubs Premium one PU" + (" (geo secondary billed too)" if not args.no_event_hubs_geo else " (single namespace)"),
-            region, "Event Hubs", hours, "1 Hour",
-            skuName="Premium", meterName="Premium Processing Unit")
+    if not args.no_event_hubs:
+        add("Event Hubs Standard one TU", region, "Event Hubs", hours, "1 Hour",
+            productName="Event Hubs", skuName="Standard", meterName="Standard Throughput Unit")
+        add("Event Hubs Standard ingress events (64KiB units)", region, "Event Hubs",
+            args.event_hubs_ingress_events/1000000, "1M",
+            productName="Event Hubs", skuName="Standard", meterName="Standard Ingress Events")
     if not args.no_redis:
         add("Managed Redis Balanced B3", region, "Redis Cache", hours, "1 Hour",
             productName="Azure Managed Redis - Balanced", skuName="B3", meterName="B3 Cache Instance")
@@ -162,7 +166,7 @@ for region in ("koreacentral", "koreasouth"):
     add("Static public IPv4", region, "Virtual Network", hours, "1 Hour",
         skuName="Standard", meterName="Standard IPv4 Static Public IP")
     # KRC: blob, ACR, PG, Monitor; KRS additionally has blob_secondary.
-    private_endpoints = 4 + (region == "koreasouth") + (not args.no_event_hubs) + (not args.no_redis) + (not args.no_search)
+    private_endpoints = 4 + (region == "koreasouth") + 2*(not args.no_event_hubs) + (not args.no_redis) + (not args.no_search)
     add(f"{region} private endpoints (includes Monitor PE)", "Global", "Virtual Network",
         private_endpoints*hours, "1 Hour",
         productName="Virtual Network Private Link", skuName="Standard", meterName="Standard Private Endpoint")
@@ -185,7 +189,7 @@ add("ACR Premium registry", "koreacentral", "Container Registry", hours/24, "1/D
 if args.acr_geo:
     add("ACR Premium geo replica", "koreasouth", "Container Registry", hours/24, "1/Day",
         productName="Container Registry", skuName="Premium", meterName="Premium Registry Replication Unit")
-add("RA-GRS Hot sample storage (100GiB budget; actual default 99.53GiB)", "koreacentral", "Storage",
+add("RA-GRS Hot sample storage (10 GB maximum; exact bytes in manifest)", "koreacentral", "Storage",
     args.storage_gb*hours/730, "1 GB/Month", productName="General Block Blob v2", skuName="Hot RA-GRS",
     meterName="Hot RA-GRS Data Stored")
 for operation, count in (("Write", args.storage_write_ops), ("Read", args.storage_read_ops)):
@@ -206,15 +210,16 @@ report = {
     "aksNodesPerRegion": nodes, "aksVmCount": 2*nodes, "nonBinding": True, "budget": args.budget,
     "enableAcrGeoReplication": args.acr_geo,
     "features": {"deployEventHubs": not args.no_event_hubs,
-                 "enableEventHubsGeoReplication": not args.no_event_hubs and not args.no_event_hubs_geo,
+                 "enableEventHubsGeoRecovery": not args.no_event_hubs and not args.no_event_hubs_georecovery,
                  "deployRedis": not args.no_redis, "deployAiSearch": not args.no_search,
                  "deployDnsResolver": args.dns_resolver, "deployAppGateway": args.app_gateway},
-    "eventHubsPremiumPuCount": 0 if args.no_event_hubs else (1 if args.no_event_hubs_geo else 2),
+    "eventHubsStandardTuCount": 0 if args.no_event_hubs else 2,
+    "eventHubsIngressUnitsPerNamespace": 0 if args.no_event_hubs else args.event_hubs_ingress_events,
     "dnsResolverInboundEndpointCount": 2 if args.dns_resolver else 0,
     "managedOsDiskCount": 0 if args.use_ephemeral_os_disk else 2*nodes,
-    "privateEndpointCount": 9 + 2*((not args.no_event_hubs) + (not args.no_redis) + (not args.no_search)),
+    "privateEndpointCount": 9 + 4*(not args.no_event_hubs) + 2*((not args.no_redis) + (not args.no_search)),
     "knownSubtotal": round(subtotal, 2), "unknownItems": unknown, "items": audit,
-    "excludedVariableCosts": ["Inter-region egress and EH/Redis/ACR/storage geo replication traffic",
+    "excludedVariableCosts": ["Inter-region egress and Redis/ACR/storage geo replication traffic",
         "Private endpoint and load balancer data processing", "Disk operations, PostgreSQL IOPS/backup excess",
         "Search semantic/agentic usage", "Log retention/query extras and diagnostic export storage",
         "Azure Monitor custom metric ingestion/alerts", "DNS queries beyond assumptions, fast probes during drills",
@@ -223,7 +228,9 @@ report = {
         "Budget alerts are notifications, not a spending cap or automatic shutdown.",
         "730 hours assumed; pause does not stop PaaS or storage charges.",
         "Cross-region availability and subscription quota are not proven by a retail price.",
-        "RA-GRS includes secondary data storage; do not double count a second 100GiB account.",
+        "RA-GRS includes secondary data storage; do not double count a second sample-data account.",
+        "Standard Event Hubs bills two namespaces (one TU each), even without metadata pairing. Kafka and Capture are disabled.",
+        "Geo-DR copies metadata, not events. Ingress assumes billable 64KiB event units in EACH namespace across the drill; standby events are not replicated.",
         "Free AKS control-plane tier has no SLA; 64GiB managed OS disks on premium-capable D4s_v5 are estimated as P6 Premium_LRS, not an AKS osDiskSKU override.",
         "Log Analytics shared free ingestion grants are ignored; paid marginal ingestion is estimated conservatively.",
         "Optional DNS resolvers include inbound endpoints only, priced with the exact blank-region global meter; no outbound endpoints or rulesets.",

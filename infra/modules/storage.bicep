@@ -93,12 +93,14 @@ module secondaryRecordInPrimary 'dns-record.bicep' = {
     address: secondaryPe[1].outputs.privateIp
   }
 }
-// No account failover: failover and failback each commonly take about an hour.
-// Validate Last Sync Time and secondary reads instead, not a timing guarantee.
+// Planned account failover preserves RA-GRS and the primary blob hostname.
+// Both regional apps use that hostname; -secondary is a replication probe only.
 // https://learn.microsoft.com/azure/storage/common/storage-disaster-recovery-guidance
 output config object = {
   id: account.id
   name: account.name
+  redundancy: 'Standard_RAGRS'
+  failoverType: 'Planned'
   primaryEndpoint: account.properties.primaryEndpoints.blob
   secondaryEndpoint: account.properties.secondaryEndpoints.blob
   secondaryLocation: account.properties.secondaryLocation

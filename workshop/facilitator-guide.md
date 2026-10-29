@@ -1,91 +1,60 @@
-# 강사 운영 가이드
+# 강사 일정과 개입 게이트
 
-[참가자 목차](README.md) · [문제 해결](troubleshooting.md)
+[고급 과정](README.md) · [단일 오퍼레이터 준비](../Workshop_simple/instructor.md) · [문제 해결](troubleshooting.md)
 
-## 권장 운영
+## 수업 설계
 
-2~4명/팀, 환경 하나당 명령 실행자 한 명을 권장합니다.
-참가자 수만큼 전체 환경을 만들지 말고 비용·quota·시간을 승인받으세요.
-당일 교육은 약 반나절~하루, 인프라/대량 복제는 전날 리허설이 현실적입니다.
-실습 단계를 이미 준비한 경우에도 누가 무엇을 실행했는지 관측 표에 표시합니다.
+2~4명/팀, 환경 하나당 오퍼레이터 한 명을 권장합니다.
+full 환경은 팀 수만큼 별도 과금하므로 참가자 수만큼 무조건 복제하지 않습니다.
+간단 과정과 고급 과정은 같은 환경을 설명 깊이만 다르게 사용합니다.
 
-## D-7: 고객과 합의
+## D-7: 범위 승인
 
-- [ ] 테스트 구독/정책/예산/메일 수신자/수업 종료 삭제 책임
-- [ ] 팀 prefix, CIDR, 네트워크 주소 대역 충돌 여부
-- [ ] full 또는 lite와 제외 검증 목록
-- [ ] AKS 4노드 합계, PG 2개, EH 2위치 PU, Redis/Search 양 리전 비용 안내
-- [ ] 지정 오퍼레이터와 역할/비밀 전달 방법 승인
-- [ ] 실제 장애 주입/성능/운영 RTO/RPO 검증이 아님에 동의
-- [ ] 화면/CSV/환경 정보 보관 및 파기 정책
-- [ ] 샘플 이미지/ARM/runbook 공개 게시 승인, 익명 GitHub Release 접근 정책
-- [ ] Automation 계정 하나의 public networking 예외 및 encrypted 테스트 자격 증명 보관 승인
+- [ ] 구독/리전 용량·정책, prefix, 주소 대역, 브라우저 실제 출구 CIDR
+- [ ] 비용(알려진 소계 약 USD 1,615.41/월/환경), 보관/삭제 담당자와 기한
+- [ ] full 기본. lite/skip이면 제외한 검증을 명시
+- [ ] 테스트 전용 HTTP, 운영 데이터/암호 미사용
+- [ ] 임시 mTLS Docker 2376 및 정리, AKS command invoke/역할 할당 권한
+- [ ] 별도 DR 승인, 수 시간 가능한 Storage planned 전환, EH fail-forward와 원래 이벤트 보존/replay
+- [ ] 실제 장애 주입/99:1/SLA/RTO/RPO 인증이 아님
 
-## D-3: 기술 준비
+## D-1: 최종 전달본으로 리허설
 
-1. 강사 계정으로 해당 구독/지역의 provider·할당량·SKU·정책을 확인합니다.
-   다른 구독의 what-if 결과로 배포 가능성을 보장하지 않습니다.
-2. [강사 패키징](labs/03-build.md)으로 로컬 Linux/amd64 build/save, 이미지/소스 검사,
-   새 태그·해시·ARM JSON·runbook을 준비하고 승인 후 네 assets를 공개합니다.
-3. 실제 Release URL로 Lab 01 버튼을 활성화하고 익명 다운로드를 확인합니다.
-   ARM JSON에는 입력한 암호가 없고, generated runbook의 ZIP은 허용 목록 원본뿐이어야 합니다.
-4. AKS의 GitHub/MCR/도구/Entra/ARM outbound와 ACR private registry/data DNS·443을 점검합니다.
-   업무 PaaS public/bypass를 열거나 VM/VPN/NAT/Tasks pool을 추가하지 않습니다.
-5. bootstrap MI의 한정 custom-role 범위와 ACR AcrPush, kubelet AcrPull,
-   app/sample WI, Storage Reader를 구별합니다.
-6. Automation 계정의 local auth false, webhook 없음, encrypted 설정 asset 접근 권한,
-   Portal 실제 배포 이름, CLI/Bicep/Bash/jq/kubectl, 브라우저 출구를 확인합니다.
+1. [아키텍처](architecture.md)와 [검증 보고서](releases/v1.0.7-validation.md)를 설명합니다.
+   실증 환경의 성공과 이번 팀 환경의 성공을 구별합니다.
+2. 공개 repo clone 대신 전달한 수정본 `source`와 원본 `deployment-tools.zip`을 준비합니다.
+3. [로컬 배포](local-package.md) 한 명령, 보호된 암호, 새 prefix를 사용합니다.
+   기존 PG/Redis 전체 템플릿 덮어쓰기는 하지 않습니다.
+4. `Complete` 이후 양 앱의 이미지/IP/Online, 10 GB/실제 읽기/fence, 데이터 쓰기/읽기를 재확인합니다.
+5. DR를 실제 리허설했다면 이 환경의 EH alias는 KRS에 남습니다.
+   첫 KRC baseline 환경인 것처럼 다음 수업에 재사용하지 않습니다.
+6. 임시 엔진/네트워크/새 grant/인증서 정리를 확인하고 문서와 실제 outputs를 대조합니다.
 
-## D-1: 같은 커밋/폴더 버전으로 리허설
+새 전체 배포 한 번은 약 49분이었지만 지역 용량/복제/정책에 따라 더 오래 걸립니다.
+인프라·복제·Storage 전환 대기를 수업 시간표에 고정된 몇 분으로 넣지 않습니다.
 
-강사 Lab 03 패키징/게시를 먼저 하고, 참가자 Lab 00~02/04~05를 리허설합니다.
+## 당일
 
-- 환경 템플릿에서 placeholder 제거, owner 메일 검증, 실제 가격 재조회
-- full 약 10GiB로 build/what-if/배포·샘플/KRS 실제 읽기 확인
-- Automation/AKS 이미지 전송, Search 초기화 및 양 AKS rollout
-- ARM 성공/앱 준비/샘플 복제 완료를 각각 관측하고 자동화 실패 경로도 확인
-- 양 리전 FQDN/Service IP/TM Online, full 서비스별 실제 쓰기/읽기
-- 한 차례 planned 전환·원복 후 baseline 복원
-- 복제 대기/배포 시간이 수업 시간을 넘으면 시간표를 조정
-
-실습 인프라 미지원 기능을 새 상위 SKU/다른 리전으로 임의 대체하지 않습니다.
-lite로 변경 시 배포 전에 학습 범위를 다시 승인합니다.
-이전 장애 훈련 후 같은 Bicep으로 무심코 초기 상태를 덮어쓰지 않습니다.
-
-## 수업 중 개입 게이트
-
-| 게이트 | 강사가 확인할 증거 | 실패 시 |
+| 게이트 | 확인 | 실패 시 |
 |---|---|---|
-| 유료 배포 | 대상 구독/비용 승인/what-if | 생성 중단 |
-| 샘플 | manifest와 KRS 검증 Job | DR 진행 보류 |
-| 이미지 | private push/digest/Linux amd64 | 공개 우회 금지 |
-| 앱 | 두 Ready/태그/IP/Online | 배포·권한 진단 |
-| 전환 | PG/EH 역할과 단일 오퍼레이터 | 부분 성공을 재확인 |
-| 종료 | 프로브/원복/삭제/담당자 | 종료 미완료로 기록 |
+| 배포 | 대상/해시/승인, 실제 작업 단계 | 재배포하지 말고 실패 단계 진단 |
+| 앱 | 두 Ready/정확한 같은 이미지/IP/TM Online | CIDR/Private Link/권한/로그 |
+| 샘플 | 2,008개/10 GB/읽기/Last Sync Time fence | DR 보류, 필요 시 캐시 300초 대기 |
+| 첫 DR | Storage Live/Planned, PG pair, EH synchronized KRC, TM baseline | 시작 금지 |
+| KRS 전환 | Storage → EH → PG → TM, 실제 역할과 데이터 | CSV/현재 역할 확인, 무작정 반대 실행 금지 |
+| KRC 앱 원복 | Storage → PG → EH active 확인 → TM, EH KRS 유지 | 부분 복구를 전체 원복으로 기록 금지 |
+| 종료 | 프로브 기본값 + 삭제/유료 보관 책임 | 종료 미완료로 인계 |
 
-가장 중요한 설명은 다음 네 가지입니다.
-
-1. TM은 DNS 응답만 바꾸며 트래픽은 실제 공인 IP로 직접 향한다.
-2. Online health와 의존 서비스 연결/복제/데이터 정합성은 다른 관측이다.
-3. `pe_region`은 PE IP이고 primary 역할/실제 데이터 리전의 증거가 아니다.
-4. UI 변화 시각 차이는 DNS 캐시만의 정밀 지연이나 보장 RTO가 아니다.
+동일 UUID를 비교하는 동안 다른 사용자가 쓰기 버튼을 누르지 않도록 조율합니다.
+브라우저 로그는 해당 탭의 최근 20건이며 UTC를 CSV에 따로 남깁니다.
+TM 안내/응답 리전의 차이는 DNS 캐시만의 정밀 지연이 아닙니다.
 
 ## 평가와 종료
 
-관측 CSV에는 최소 평시/전환/KRS 쓰기/원복/삭제를 기록합니다.
-실패를 정상으로 바꾸기 위해 catch/skip/키 인증/public 접근을 추가하지 않습니다.
-증거에는 암호·키·토큰·Kubernetes Secret 본문을 넣지 않습니다.
-팀의 자격 증명/상태 폴더를 다른 팀에 넘기지 마세요.
+배포 성공, 평시 확인, DR 실제 수행, 관찰만 수행을 각각 표시합니다.
+UI의 EH read는 metadata이지 payload 소비가 아닙니다. Search count는 정확한 문서 대조가 아닙니다.
+실증 보고서에 있는 강한 검증을 이번 수업에서 재실행했다고 꾸미지 않습니다.
 
-종료 시 강사는 모든 팀의 3개 RG(Automation/MI/암호 asset 포함), AKS managed RG,
-구독 budget/부트스트랩 custom role과 보관 승인 목록을
-대조합니다. pause한 환경은 정리 완료가 아니라 잔여 과금 승인 대상입니다.
-expiry 태그는 자동 삭제가 아닙니다. 비용 포털 반영 지연을 고려해 다음 날 재확인합니다.
-강사 로컬 이미지/릴리스 산출물과 GitHub 공개 assets의 보관/파기는 별도 소유자에게 인계합니다.
-
-## 작성 시 검증과 고객 리허설의 구별
-
-기존 앱/스크립트의 mock 테스트와 Bicep/what-if는 제공되지만 고객 구독에서의
-생성·지원 SKU·private 데이터 경로·DR 성공 증거는 아닙니다.
-workshop Markdown의 shell 구문/파일 링크/명령 계약을 검사하고, 정리 스크립트는
-실제 RG 이름 규칙을 사용하는 모의 테스트로 검증합니다. 유료 작업은 자동 실행하지 않습니다.
+[Lab 07](labs/07-cleanup.md)의 paired EH 사전 해제와 RG/managed RG 확인을 따릅니다.
+`drws1028c`는 승인된 보관 환경이며 무단 삭제하지 않습니다.
+남은 오류·기한·소유자·비용 담당자와 다음 날 실제 비용 확인까지 인계합니다.

@@ -1,11 +1,12 @@
-FROM python:3.12-slim
+FROM python:3.12-alpine3.24@sha256:5789aa194f757888f41fa3d48e14b6feaa1b57c0af0b56fcb1372d6474d3bff0
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt \
-    && groupadd --gid 10001 dashboard \
-    && useradd --uid 10001 --gid 10001 --no-create-home dashboard
-COPY --chown=10001:10001 main.py .
+RUN python -m pip install --no-cache-dir --upgrade pip==26.2.2 \
+    && python -m pip install --no-cache-dir --only-binary=:all: -r requirements.txt \
+    && addgroup -g 10001 dashboard \
+    && adduser -D -H -u 10001 -G dashboard -s /sbin/nologin dashboard
+COPY --chown=10001:10001 main.py sample_layout.py sample_upload.py ./
 COPY --chown=10001:10001 static ./static
 USER 10001:10001
 EXPOSE 8000

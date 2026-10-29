@@ -17,7 +17,6 @@ resource search 'Microsoft.Search/searchServices@2025-05-01' = {
     hostingMode: 'Default'
     publicNetworkAccess: 'disabled'
     disableLocalAuth: true
-    authOptions: { aadOrApiKey: { aadAuthFailureMode: 'http401WithBearerChallenge' } }
     semanticSearch: 'disabled'
   }
 }

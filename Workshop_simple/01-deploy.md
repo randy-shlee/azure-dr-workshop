@@ -1,54 +1,46 @@
-# 01. 배포하기
+# 01. 원클릭 배포
 
 [이전](00-start.md) · [목차](README.md) · [다음: 준비 확인](02-ready.md)
 
 ## 목표
 
-기존 공개 릴리스로 인프라와 앱 자동 배포를 시작합니다. PC에서 빌드하지 않습니다.
-**사전 준비 환경을 받았다면 버튼을 누르지 말고 기존 배포 이력을 확인합니다.**
+검증된 로컬 패키지의 **한 명령으로 앱까지 자동 배포**되는 과정을 관찰합니다.
+공개 웹의 Deploy to Azure 버튼을 누르는 방식이 아닙니다.
+명령/암호 입력은 강사만 [배포 안내](../workshop/local-package.md#one-command-to-deploy)에 따라 수행합니다.
 
 ## 할 일
 
-1. 신규 배포가 승인됐다면 다음 버튼을 누릅니다.
+1. 강사가 최종 ZIP과 manifest를 확인하고 원본 `deployment-tools.zip`을 `tools`에 추출합니다.
+   `source`는 문서/DR 스크립트용이며 실제 배포는 추출한 고정 버전 도구를 사용합니다.
+2. 승인된 새 prefix/구독/CIDR과 SecureString PG 암호로 단일 명령을 실행합니다.
+3. 다음 자동 단계를 확인합니다.
 
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Frandy-shlee%2Fazure-dr-workshop%2Fv1.0.3%2Fworkshop%2Freleases%2Fazuredeploy.json)
+   **해시 → 인프라 → 사설 ACR 이미지 → 양 앱/Secret/Service → 자동 10 GB
+   샘플/복제/보조 읽기 → TM·실제 서비스 smoke**
 
-사용 버전: [Azure DR workshop v1.0.3](https://github.com/randy-shlee/azure-dr-workshop/releases/tag/v1.0.3).
+4. `tools\.state\deployments\<prefix>\deployment-status.json`에서 `phase=Complete`를 확인합니다.
+   인프라 `Succeeded`만으로 앱 완료가 아닙니다.
+5. 해당 폴더의 `config.json`과 TM/지역 앱 주소를 강사에게 받습니다.
 
-2. 다음 항목만 입력·확인하고, 나머지는 강사가 지정한 기본값을 유지합니다.
-
-| 입력 항목 | 입력/확인 값 |
-|---|---|
-| Subscription / Deployment location | 승인된 테스트 구독 / Korea Central |
-| Prefix | 팀별 고유한 3~12자 소문자/숫자 |
-| Expiry | 종료 예정 ISO 날짜. 예: `2026-11-27`. 자동 삭제 아님 |
-| Allowed Client Cidrs | 실제 브라우저 공인 IPv4 CIDR 배열. `["203.0.113.10/32"]`는 문서용이며 실제 IP로 교체 |
-| Administrator Login / Password | 테스트 PG 계정. 암호는 최소 12자이며 강사가 서비스 암호 규칙도 확인 |
-
-3. **Deploy Workshop Bootstrap=true**, **Sample Data Size GB=10**,
-   **Small File Count=2000**, **Skip Sample Data=false**를 확인합니다.
-   lite라면 강사가 Deploy Event Hubs/Redis/Ai Search와 Enable Event Hubs Geo Replication을 false로 지정합니다.
-4. 강사가 실제 프로필의 비용/권한/Provider what-if를 검토했는지 확인한 뒤,
-   **Review + create → Create**를 누릅니다. 이때 과금 리소스 생성이 시작됩니다.
-5. **Subscriptions → 해당 구독 → Deployments**에서 실제 배포 이름과 상태를 기록합니다.
-   이름을 `<prefix>-drtest`라고 추측하지 마세요. 완료 후 **Outputs → config**를 엽니다.
-
-고급 파라미터가 더 보이는 것은 정상입니다. **Owner / Monthly Budget / Budget Start Date는 없습니다.**
-기본 AKS는 리전당 D4s_v5 2노드입니다. Private ACR/PaaS 정책과 릴리스 URL/해시는 바꾸지 않습니다.
+사전 준비 환경이면 이 단계를 다시 실행하지 않고 배포 이력/해시/완료 상태를 봅니다.
+`drws1028c`는 이 전체 흐름의 성공 실증 환경이며 [결과](../workshop/releases/v1.0.7-validation.md)를 참고합니다.
 
 ## 정상 상태
 
-배포가 Succeeded이고 Outputs에 config가 있습니다. 이는 **앱/샘플 완료가 아니라
-인프라와 자동화 시작 요청 성공**입니다. 다음 Lab에서 계속 확인합니다.
+- 로컬 상태 `Complete`, 양 앱 준비, 샘플 생략 없이 다음 게이트로 진행.
+- 현재 경로에는 cloud Automation 계정/`workshop-bootstrap-status`가 없어도 정상.
+- 원본 이미지/템플릿/도구를 변조하거나 공개 URL에 의존하지 않음.
+
+`-SkipSampleData`를 명시한 배포는 앱 준비만 증명하므로 샘플/DR 완료로 제출하지 않습니다.
 
 ## 안 되면 멈추기
 
-템플릿 다운로드/validation/권한/할당량 오류는 강사에게 전달합니다.
-실패한 환경에 무조건 다시 Create하지 않고, 특히 DR 전환 중에는 재배포하지 않습니다.
-포털 validation은 Provider what-if나 실제 리전 용량 검증을 대신하지 않습니다.
+`Failed`/timeout/오류는 성공이 아닙니다. 실제 실패 단계와 오류를 강사에게 전달합니다.
+같은 prefix로 전체 배포를 반복하거나 이미 있는 PG/Redis를 삭제해 우회하지 않습니다.
+공개 v1.0.3 버튼과 미게시 과거 Draft는 사용하지 않습니다.
 
 ## 완료 체크
 
-- [ ] 승인된 구독과 실제 입력값 확인
-- [ ] 배포 Succeeded 또는 사전 준비된 배포 이력 확인
-- [ ] 실제 배포 이름과 Outputs → config 확보
+- [ ] 같은 버전 assets/해시와 승인된 입력 확인
+- [ ] 실제 상태 `Complete` 또는 준비된 환경의 완료 이력 확인
+- [ ] 해당 작업의 config/주소와 샘플 생략 여부 확인

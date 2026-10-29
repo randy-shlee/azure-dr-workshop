@@ -5,6 +5,7 @@ export AZCOPY_AUTO_LOGIN_TYPE=WORKLOAD
 export AZCOPY_CONCURRENCY_VALUE="${AZCOPY_CONCURRENCY_VALUE:-2}"
 export AZCOPY_BUFFER_GB="${AZCOPY_BUFFER_GB:-0.0625}"
 export AZCOPY_LOG_LOCATION=/work/logs AZCOPY_JOB_PLAN_LOCATION=/work/plans
+export PYTHONPATH="/program${PYTHONPATH:+:$PYTHONPATH}"
 mkdir -p /work/logs /work/plans /work/data
 python3 - <<'PY'
 import datetime
@@ -12,25 +13,18 @@ import json
 import os
 import pathlib
 import subprocess
+import sys
+import threading
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import uuid
 import xml.etree.ElementTree as ET
+from sample_layout import CONTROL_BLOB, CONTROL_CONTAINER, LEASE_SECONDS, RENEW_SECONDS, layout
 
 def utc():
     return datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
-
-def layout(size_gb, large_gb, small_count, small_mb):
-    size, large, small = int(size_gb) * 1024**3, int(large_gb) * 1024**3, int(small_mb) * 1024**2
-    if min(size, large, small) <= 0 or int(small_count) < 0:
-        raise ValueError("Sizes must be positive and small count nonnegative")
-    remaining = size - int(small_count) * small
-    if remaining < large:
-        raise ValueError("Requested budget must fit small files and at least one large file")
-    count = remaining // large
-    return {**{f"large/large-{i:06d}.bin": large for i in range(count)},
-            **{f"small/small-{i:06d}.bin": small for i in range(int(small_count))}}
 
 def token(scope):
     body = urllib.parse.urlencode({
@@ -49,6 +43,7 @@ def token(scope):
 class Storage:
     def __init__(self, endpoint):
         self.endpoint = endpoint.rstrip("/")
+        self.container = os.environ.get("SAMPLE_DATA_CONTAINER", "sampledata")
         self.access_token = ""
         self.expires = 0
 
@@ -76,7 +71,7 @@ class Storage:
         found, marker = {}, ""
         while True:
             query = urllib.parse.urlencode({"restype": "container", "comp": "list", "maxresults": "5000", "marker": marker})
-            data, _ = self.request("sampledata?" + query)
+            data, _ = self.request(self.container + "?" + query)
             root = ET.fromstring(data)
             for blob in root.findall("./Blobs/Blob"):
                 name = blob.findtext("Name")
@@ -85,11 +80,94 @@ class Storage:
             if not marker:
                 return found
 
-def azcopy(arguments, input_size=None):
+class UploadLease:
+    def __init__(self, store):
+        self.store = store
+        self.renew_store = Storage(store.endpoint)
+        self.path = CONTROL_CONTAINER + "/" + CONTROL_BLOB
+        self.id = str(uuid.uuid4())
+        self.stop = threading.Event()
+        self.failed = False
+        self.deadline = 0
+
+    def action(self, action):
+        headers = {"x-ms-lease-action": action}
+        if action == "acquire":
+            headers.update({"x-ms-lease-duration": str(LEASE_SECONDS), "x-ms-proposed-lease-id": self.id})
+        else:
+            headers["x-ms-lease-id"] = self.id
+        store = self.renew_store if action == "renew" else self.store
+        store.request(self.path + "?comp=lease", method="PUT", body=b"", headers=headers)
+
+    def check(self):
+        if self.failed or time.monotonic() >= self.deadline:
+            raise RuntimeError("Sample upload lease lost; resume only after inspecting the inventory")
+
+    def renew(self):
+        while not self.stop.wait(RENEW_SECONDS):
+            try:
+                self.action("renew")
+                self.deadline = time.monotonic() + 50
+            except Exception as error:
+                self.failed = True
+                print("Sample lease renewal failed: " + type(error).__name__, file=sys.stderr, flush=True)
+                return
+
+    def __enter__(self):
+        current, _ = self.store.request(self.path, allow404=True)
+        if current is None:
+            try:
+                self.store.request(self.path, method="PUT", body=b"{}", headers={
+                    "x-ms-blob-type": "BlockBlob", "If-None-Match": "*"})
+            except urllib.error.HTTPError as error:
+                if error.code not in (409, 412):
+                    raise
+        try:
+            self.action("acquire")
+        except urllib.error.HTTPError as error:
+            if error.code == 409:
+                raise RuntimeError("Another sample upload is running (application or CLI)") from None
+            raise
+        self.deadline = time.monotonic() + 50
+        self.thread = threading.Thread(target=self.renew, daemon=True)
+        self.thread.start()
+        return self
+
+    def __exit__(self, kind, value, traceback):
+        self.stop.set()
+        self.thread.join(timeout=125)
+        if self.thread.is_alive():
+            raise RuntimeError("Lease renewal did not stop; leave the lease to expire before resuming")
+        try:
+            if kind is None:
+                self.check()
+        finally:
+            try:
+                self.action("release")
+            except urllib.error.HTTPError as error:
+                print("Sample lease release failed: HTTP " + str(error.code), file=sys.stderr, flush=True)
+                if kind is None:
+                    raise
+
+def azcopy(arguments, input_size=None, check=None):
     command = ["/tools/azcopy", "copy", *arguments, "--output-type=text", "--log-level=ERROR",
                "--block-size-mb=4", "--cap-mbps=" + os.environ.get("UPLOAD_CAP_MBPS", "0")]
     if input_size is None:
-        subprocess.run(command, check=True)
+        if check is None:
+            subprocess.run(command, check=True)
+            return
+        process = subprocess.Popen(command)
+        try:
+            while process.poll() is None:
+                check()
+                time.sleep(0.25)
+            if process.returncode:
+                raise RuntimeError("AzCopy batch upload failed")
+        except BaseException:
+            if process.poll() is None:
+                process.terminate()
+            process.wait()
+            raise
         return
     # PipeBlob avoids a 10 GiB local file on a minimal AKS node. Random blocks do not
     # compress to misleadingly tiny benchmark payloads. Names, not payloads, are deterministic.
@@ -97,6 +175,8 @@ def azcopy(arguments, input_size=None):
     try:
         remaining = input_size
         while remaining:
+            if check:
+                check()
             chunk = os.urandom(min(4 * 1024**2, remaining))
             process.stdin.write(chunk)
             remaining -= len(chunk)
@@ -104,18 +184,31 @@ def azcopy(arguments, input_size=None):
         if process.wait() != 0:
             raise RuntimeError("AzCopy stream upload failed")
     except BaseException:
-        process.stdin.close()
+        if process.poll() is None:
+            process.terminate()
+        try:
+            process.stdin.close()
+        except BrokenPipeError:
+            pass
         process.wait()
         raise
 
-def main():
-    expected = layout(os.environ.get("SIZE_GB", "100"), os.environ.get("LARGE_FILE_SIZE_GB", "10"),
-                      os.environ.get("SMALL_FILE_COUNT", "20000"), os.environ.get("SMALL_FILE_SIZE_MB", "1"))
+def main(lease=None):
+    expected = layout(os.environ.get("SIZE_GB", "10"), os.environ.get("LARGE_FILE_SIZE_GB", "1"),
+                      os.environ.get("SMALL_FILE_COUNT", "2000"), os.environ.get("SMALL_FILE_SIZE_MB", "1"))
     mode = os.environ.get("UPLOAD_MODE", "upload")
     endpoint = os.environ["STORAGE_ENDPOINT"]
+    container = os.environ.get("SAMPLE_DATA_CONTAINER", "sampledata")
     store = Storage(endpoint)
+    def copy(arguments, size=None):
+        if lease:
+            lease.check()
+            azcopy(arguments, size, check=lease.check)
+            lease.check()
+        else:
+            azcopy(arguments, size)
     if mode == "verify":
-        data, _ = store.request("sampledata/_manifest.json")
+        data, _ = store.request(container + "/_manifest.json")
         manifest = json.loads(data)
         if manifest["expected"] != expected:
             raise RuntimeError("Secondary manifest layout does not match configured sample layout")
@@ -127,14 +220,14 @@ def main():
         for name in (next(n for n in expected if n.startswith("large/")),
                      next((n for n in expected if n.startswith("small/")), None)):
             if name:
-                data, _ = store.request("sampledata/" + name, headers={"Range": "bytes=0-1023"})
+                data, _ = store.request(container + "/" + name, headers={"Range": "bytes=0-1023"})
                 if len(data) != 1024:
                     raise RuntimeError(f"Secondary ranged read failed: {name}")
         print("SECONDARY_READ_VERIFIED " + json.dumps({"endUtc": utc(), "objects": len(expected),
                                                        "bytes": sum(expected.values())}), flush=True)
         return
     start = utc()
-    old, _ = store.request("sampledata/_manifest.json", allow404=True)
+    old, _ = store.request(container + "/_manifest.json", allow404=True)
     if old:
         previous = json.loads(old)
         if previous.get("expected") != expected:
@@ -144,10 +237,10 @@ def main():
     for name in set(actual) & set(expected):
         if actual[name] != expected[name]:
             raise RuntimeError(f"Existing wrong-sized blob {name}; repair explicitly before resuming")
-    base = endpoint.rstrip("/") + "/sampledata/"
+    base = endpoint.rstrip("/") + "/" + container + "/"
     for name, size in expected.items():
         if name.startswith("large/") and name not in actual:
-            azcopy([base + name, "--from-to=PipeBlob", "--overwrite=false"], size)
+            copy([base + name, "--from-to=PipeBlob", "--overwrite=false"], size)
     # Bounded batches keep ephemeral space <256 MiB even with 20,000 small files.
     directory = pathlib.Path("/work/data")
     batch = []
@@ -156,7 +249,7 @@ def main():
         nonlocal batch, batch_bytes
         if not batch:
             return
-        azcopy([str(directory) + "/*", base + "small/", "--recursive=true", "--overwrite=false"])
+        copy([str(directory) + "/*", base + "small/", "--recursive=true", "--overwrite=false"])
         for path in batch:
             path.unlink()
         batch, batch_bytes = [], 0
@@ -189,7 +282,9 @@ def main():
                 "actualBytes": sum(expected.values()), "actualGiB": sum(expected.values()) / 1024**3,
                 "expected": expected}
     encoded = json.dumps(manifest, separators=(",", ":")).encode()
-    store.request("sampledata/_manifest.json", method="PUT", body=encoded,
+    if lease:
+        lease.check()
+    store.request(container + "/_manifest.json", method="PUT", body=encoded,
                   headers={"x-ms-blob-type": "BlockBlob", "Content-Type": "application/json"})
     # Compact marker is intentionally machine-readable in AKS command-invoke logs.
     summary = {k: v for k, v in manifest.items() if k != "expected"}
@@ -197,5 +292,9 @@ def main():
     print("UPLOAD_MANIFEST " + json.dumps(summary), flush=True)
 
 if __name__ == "__main__":
-    main()
+    if os.environ.get("UPLOAD_MODE", "upload") == "verify":
+        main()
+    else:
+        with UploadLease(Storage(os.environ["STORAGE_ENDPOINT"])) as lease:
+            main(lease)
 PY

@@ -87,7 +87,7 @@ resource aks 'Microsoft.ContainerService/managedClusters@2026-08-01' = {
         maxPods: 30
         nodeLabels: { purpose: 'dr-test' }
         tags: tags
-        upgradeSettings: { maxSurge: '0', maxUnavailable: '1' }
+        upgradeSettings: { maxSurge: '1' }
       }
     ]
     networkProfile: {

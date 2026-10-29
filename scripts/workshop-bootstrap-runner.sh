@@ -5,7 +5,7 @@ export AZURE_CONFIG_DIR=/work/azure DOCKER_CONFIG=/work/docker
 export PATH="/work/bin:$PATH"
 mkdir -p "$STATE_DIR" "$AZURE_CONFIG_DIR" "$DOCKER_CONFIG" /work/bin
 source "$(dirname "$0")/common.sh"
-need az jq curl sha256sum tar gzip
+need az jq curl sha256sum
 need_python
 read_input() {
   IFS= read -r -d '' "$1" <"/inputs/$2" || [[ -n "${!1}" ]] || die "Empty input: $2"
@@ -57,11 +57,11 @@ publish_status Importing 'Verifying release archive and transferring to private 
 CURRENT_STEP=image-transfer
 csv_log START "$CURRENT_STEP"
 download_verified "$CRANE_URI" "$CRANE_SHA256" /work/crane.tar.gz
-tar -xzf /work/crane.tar.gz -C /work/bin crane
+"$PYTHON_BIN" -c 'import pathlib,tarfile; a=tarfile.open("/work/crane.tar.gz"); p=pathlib.Path("/work/bin/crane"); p.write_bytes(a.extractfile("crane").read()); p.chmod(0o700)'
 download_verified "$KUBECTL_URI" "$KUBECTL_SHA256" /work/bin/kubectl
 chmod 700 /work/bin/crane /work/bin/kubectl
 download_verified "$IMAGE_URI" "$IMAGE_SHA256" /work/app-image.tar.gz
-gzip -dc /work/app-image.tar.gz >/work/app-image.tar
+"$PYTHON_BIN" -c 'import gzip,shutil; a=gzip.open("/work/app-image.tar.gz","rb"); b=open("/work/app-image.tar","wb"); shutil.copyfileobj(a,b); b.close(); a.close()'
 registry="$(cfg '.primary.acr.name')"
 login_server="$(cfg '.primary.acr.loginServer')"
 export APP_IMAGE="$login_server/drtest-app:release-${IMAGE_SHA256,,}"

@@ -1,130 +1,89 @@
-# Lab 01. Deploy to Azure → 인프라와 앱 자동 배포
+# Lab 01. 원클릭 배포와 실제 config 연결
 
-[이전](00-readiness.md) · [목차](../README.md) · [다음](02-data.md)
+[이전](00-readiness.md) · [목차](../README.md) · [다음: 샘플 검증](02-data.md)
 
-고객 PC에서 이미지를 빌드하거나 후속 배포 스크립트를 시작하지 않습니다.
-강사가 미리 공개한 **ARM JSON + runbook + docker save 아카이브**를 사용합니다.
-버튼은 포털 입력 화면을 열며, 실제 과금 리소스 생성은 **Review + create → Create** 승인 후 시작합니다.
+## 1-1. 고정된 도구 한 명령
 
-## 1-1. 포털에서 시작
+최종 ZIP을 새 디렉터리에 풀고 **ZIP 루트의 PowerShell**에서 실행합니다.
+사용 중인 환경의 전체 PG/Redis 템플릿을 덮어쓰는 명령이 아닙니다.
+구독/새 prefix/실제 승인 공인 IP를 바꾸고 [전체 배포 안내](../local-package.md)를 함께 봅니다.
 
-<!-- DEPLOY_BUTTON_START -->
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Frandy-shlee%2Fazure-dr-workshop%2Fv1.0.3%2Fworkshop%2Freleases%2Fazuredeploy.json)
-
-Release: `randy-shlee/azure-dr-workshop@v1.0.3`. 게시된 공개 assets를 확인한 후 사용합니다.
-<!-- DEPLOY_BUTTON_END -->
-
-[공식 버튼 규격](https://learn.microsoft.com/azure/azure-resource-manager/templates/deploy-to-azure-button)에
-따라 원격 Bicep이 아닌 **subscription-scope ARM JSON**을 연결합니다.
-리소스 모듈은 JSON 내부에 포함되므로 고객이 별도로 모듈을 업로드하지 않습니다.
-
-## 1-2. 생성 전에 확인할 항목
-
-강사는 게시된 JSON의 SHA256, 실제 고객 프로필의 비용 및 Provider what-if를
-[릴리스 절차](03-build.md#게시-전-what-if)대로 검토합니다.
-포털 Review + create의 validation은 what-if나 실제 리전 용량 검증과 같지 않습니다.
-
-| 입력 | 고객/강사 확인 |
-|---|---|
-| Subscription | 승인된 테스트 구독. Owner 또는 동등한 배포·역할 정의/할당 권한 필요 |
-| Deployment location | `Korea Central` |
-| prefix | 팀별 3~12자 소문자/숫자 권장. 전환 중 기존 환경에 재배포하지 않음 |
-| expiry | ISO 날짜. 자동 삭제 기능이 아님 |
-| allowedClientCidrs | 테스트 브라우저의 공인 IPv4 CIDR 배열. 예: `["203.0.113.10/32"]`는 설명용이며 실제 IP로 교체 |
-| administratorLogin / administratorPassword | 테스트 PG 관리자. 암호는 secure 입력이며 outputs/릴리스에 포함되지 않음 |
-| deployWorkshopBootstrap | 게시된 워크숍 JSON 기본 `true`. Automation 계정 하나의 공용 네트워크 예외에 동의할 때만 사용 |
-| bootstrapRunbookUri / Sha256, appImageArchiveUri / Sha256 | 강사가 패키징한 기본값 그대로. 공개된 동일 버전 GitHub Release와 정확히 일치해야 함 |
-| sampleDataSizeGB / smallFileCount | 워크숍 기본 `10` / `2000` (실제 약 9.953GiB). 원본 Bicep의 100GiB 기본값과 다름 |
-| skipSampleData | 기본 `false`. `true`이면 대용량 복제 실습은 제외 |
-| deployEventHubs / deployRedis / deployAiSearch | full 기본 `true`. lite는 세 개와 enableEventHubsGeoReplication을 `false`로 변경 |
-| 나머지 선택 기능 | ACR geo, App Gateway, DNS Resolver, alerts 기본 `false` 유지 |
-
-기존 Bicep/CLI 경로는 `deployWorkshopBootstrap=false` 기본값을 유지합니다.
-공개 포털 템플릿은 owner·monthlyBudget·budgetStartDate 입력과 예산 생성을 제외합니다.
-owner 태그와 이메일 알림도 만들지 않습니다. 기존 CLI 경로의 owner/예산/선택 알림은 유지합니다.
-예산을 만들지 않아도 서비스 과금은 발생하므로 비용 검토와 종료 후 삭제는 필수입니다.
-`main.bicepparam`의 환경 변수는 포털에 자동 반영되지 않습니다.
-**D4s_v5 2노드/리전 등 현재 지원 SKU와 비용은 기존 기준을 유지**합니다.
-KRS의 기능/용량 지원을 확인할 수 없으면 강사가 중단하거나 해당 기능을 명시적으로 끕니다.
-
-## 1-3. Create 한 번으로 실행되는 작업
-
-1. TM 포함 인프라를 한 번의 구독 배포로 생성합니다.
-2. global RG에 Basic Automation 계정, encrypted 설정 asset, 게시 runbook과 실행 job을 생성합니다.
-3. runbook이 MI로 KRC `AKS runCommand`를 호출해 **기존 AKS의 부트스트랩 Job**을 시작합니다.
-4. AKS Job이 Release 이미지 아카이브를 내려받고 SHA256을 확인한 뒤,
-   daemonless `crane`으로 **사설 ACR PE**에 push합니다. 재빌드, Docker-in-Docker,
-   ACR admin 계정, `az acr import`, public/bypass 변경은 없습니다.
-5. 기존 설정 생성·Search 초기화·앱 적용 코드를 재사용합니다. PG/Redis는 테스트용
-   Secret으로 전달하고 양쪽 Ready, 고정 IP 일치, TM 두 endpoint Online을 확인합니다.
-6. 화면을 먼저 사용할 수 있도록 앱 준비 뒤 샘플 업로드·복제/보조 읽기 검증을
-   AKS에서 이어갑니다. 기존 CLI `deploy.sh`의 순서는 변경하지 않았습니다.
-
-고객 PC에 private ACR 연결이나 Docker는 필요하지 않습니다. 대신 AKS outbound에서
-공개 GitHub assets, MCR, Kubernetes 바이너리 다운로드와 Entra/ARM 접근이 허용되어야 합니다.
-새 VM/NAT/VPN/Tasks pool은 생성하지 않습니다.
-장시간 복제 대기 중 CLI 인증이 만료되지 않도록 부트스트랩은 각 ARM 호출 전에
-현재 projected Workload Identity 토큰을 다시 읽습니다. 최초 로그인 토큰을 재사용하지 않습니다.
-
-## 1-4. 완료 상태를 구분
-
-| 상태 | 의미 / 다음 동작 |
-|---|---|
-| 포털 Deployment Succeeded | 인프라와 자동화 **시작 요청** 성공. 앱 완료가 아님 |
-| Automation job Completed | 양 리전 앱 Ready + Service IP 일치 + TM Online 확인. 샘플은 계속될 수 있음 |
-| KRC `workshop-bootstrap-status`의 ApplicationReady | 앱 준비 완료, 샘플 대기 가능 |
-| KRC `workshop-bootstrap` Job Complete + status Complete | 샘플을 명시적으로 skip했거나 업로드·Last Sync Time·KRS 실제 읽기까지 확인 |
-| Failed / Suspended / timeout | 성공으로 기록하지 말고 [문제 해결](../troubleshooting.md#포털-자동-배포)을 사용 |
-
-포털의 구독 배포 **Outputs → config**에서 TM FQDN과 `bootstrap.accountName/jobId`를
-확인합니다. 해당 Automation 계정 **Jobs**에서 job GUID의 Output/Errors를 확인합니다.
-Automation cloud job의 3시간 제한을 피하기 위해 장시간 샘플 복제 대기는 AKS가 담당합니다.
-앱 준비 대기 자체는 100분으로 제한되며 timeout은 오류로 남깁니다.
-
-## 1-5. 테스트/훈련용 CLI 설정 복원
-
-배포에는 필요 없지만 다음 Lab의 조회와 훈련 스크립트에는 Azure CLI/Bash가 필요합니다.
-아래 파일에는 암호/키를 넣지 않습니다. Windows에서는 `.state`의 NTFS ACL도 사용자 전용인지 확인합니다.
-
-```bash
-umask 077
-mkdir -p .state
-cp workshop/templates/workshop.env.example .state/workshop.env
+```powershell
+$release = (Get-Location).Path
+Expand-Archive -LiteralPath .\deployment-tools.zip -DestinationPath .\tools
+$password = Read-Host 'Test PostgreSQL password' -AsSecureString
+.\tools\scripts\deploy-local-package.ps1 `
+  -ReleaseDirectory $release `
+  -Prefix 'mydrws01' `
+  -SubscriptionId 'YOUR-SUBSCRIPTION-ID' `
+  -AllowedClientCidrs 'YOUR-APPROVED-PUBLIC-IP/32' `
+  -AdministratorLogin 'dradmin' `
+  -AdministratorPassword $password `
+  -ConfirmCreate
+Remove-Variable password
 ```
 
-`.state/workshop.env`의 구독/prefix/CIDR과 **DEPLOYMENT_NAME**을 포털에서 실제 생성된
-구독 배포 이름으로 수정합니다. 포털 이름을 `${PREFIX}-drtest`라고 가정하면 안 됩니다.
-그 후:
+암호를 명령행/파일에 평문으로 적지 않습니다. 첫 CIDR은 실제 배포 오퍼레이터 출구 주소입니다.
+기존 팀 환경을 받았다면 명령을 재실행하지 말고 아래 완료 상태와 실제 앱만 확인합니다.
 
-```bash
-source .state/workshop.env
-az account set --subscription "$SUBSCRIPTION_ID"
-source scripts/common.sh
-load_config
-cp workshop/templates/observations.csv "$STATE_DIR/observations.csv"
-jq '{prefix,features,sampleData,trafficManager,bootstrap}' "$CONFIG_FILE"
-bash scripts/bootstrap-status.sh --wait-app
+## 1-2. 자동 실행과 완료 게이트
+
+1. 이미지/ARM/도구 SHA256과 서버 10 GB 계약 검증.
+2. 세 RG 존재를 검사해 충돌 거절, cloud bootstrap=false로 새 인프라 생성.
+3. 승인 CIDR+mTLS 임시 Docker 엔진으로 **원본 이미지**를 사설 ACR에 push.
+4. 임시 엔진/규칙/새 grant/인증서 정리.
+5. Search 초기화, 양 앱의 설정/Secret/Deployment/Service와 Ready/고정 IP/TM 확인.
+6. 앱 준비 **후** CLI 10 GB 업로드/복제/KRS 실제 읽기.
+7. 공개 앱의 실제 서비스 smoke 후 `phase=Complete`.
+
+```powershell
+Get-Content .\tools\.state\deployments\mydrws01\deployment-status.json
 ```
 
-이 명령은 작업을 시작하지 않고 **이미 시작된 자동 배포 상태만 관측**합니다.
-`bootstrap-status.sh`는 준비 완료 0, 대기 중 2, 실패 1을 반환합니다.
-`--wait-app`은 준비 또는 명시적 timeout까지 기다립니다.
+`ProvisioningInfrastructure`, `ImportingImage`, `ApplyingAndVerifyingApps`는 중간 상태입니다.
+`Complete`가 필요하며 `Failed`/timeout은 다음 단계로 진행하지 않습니다.
+`-SkipSampleData`는 샘플 검증 제외를 명시한 것이며 복제 성공이 아닙니다.
+현재 경로에서 Automation Job/부트스트랩 ConfigMap이 없는 것은 정상입니다.
 
 ## 새 터미널에서 복원
 
+이후 Bash 명령은 **전달본 source 폴더**에서 실행합니다. `tools`와 `source`는 형제 폴더입니다.
+원본 tools ZIP에는 DR 전체 코드가 없으므로 tools 폴더를 DR 저장소 루트로 쓰지 않습니다.
+같은 버전 코드와 **이번 성공 작업의 config**를 연결합니다.
+
 ```bash
-source .state/workshop.env
+export SUBSCRIPTION_ID='YOUR-SUBSCRIPTION-ID'
+export PREFIX='mydrws01'
+export STATE_DIR="$PWD/.state/$PREFIX"
+export CONFIG_FILE="$PWD/../tools/.state/deployments/$PREFIX/config.json"
+[[ -s "$CONFIG_FILE" ]] || { printf 'STOP: successful deployment config required\n' >&2; exit 1; }
+jq -e --arg p "$PREFIX" --arg s "/subscriptions/$SUBSCRIPTION_ID/" \
+  '.prefix == $p and (.primary.aks.id | startswith($s))' "$CONFIG_FILE" \
+  || { printf 'STOP: subscription/prefix mismatch\n' >&2; exit 1; }
+az login
 az account set --subscription "$SUBSCRIPTION_ID"
 source scripts/common.sh
 load_config
+mkdir -p "$STATE_DIR"
+cp workshop/templates/observations.csv "$STATE_DIR/observations.csv"
+jq '{prefix,primaryResourceGroup,secondaryResourceGroup,globalResourceGroup,sampleData,trafficManager}' "$CONFIG_FILE"
 ```
 
-실제 outputs의 features를 기준으로 실습합니다. 셸 변수만 바꿔 배포된 서비스를
-껐다고 가정하지 않습니다. 로그/outputs는 고객 환경 정보이므로 무단 공유하지 않습니다.
+다른 디렉터리 배치라면 CONFIG_FILE만 실제 파일로 변경합니다.
+없는 config를 `load_config`의 deployment-name 추정으로 복구하지 않습니다.
+새 터미널마다 위 네 환경 변수/구독과 common.sh를 복원합니다. 비밀 값은 저장하지 않습니다.
+
+## 선택적 포털 — 현재 과정에서 실행하지 않음
+
+<!-- DEPLOY_BUTTON_START -->
+현재 v1.0.7은 로컬 전용입니다. 승인·게시·별도 실증한 동일 버전 assets 없이는 포털 버튼을 사용하지 않습니다.
+<!-- DEPLOY_BUTTON_END -->
+
+코드에는 포털/Automation 경로가 있지만 최신 로컬 실증을 그 경로의 성공으로 주장하지 않습니다.
+공개 v1.0.3은 이전 이미지/템플릿이므로 사용 금지입니다. [제작자 범위](03-build.md)를 참고합니다.
 
 ## 완료 게이트
 
-- [ ] 게시된 버전·해시, 비용/권한/what-if 및 Automation 예외 승인
-- [ ] 포털 배포 Succeeded와 앱 준비 완료를 별도로 확인
-- [ ] 실제 DEPLOYMENT_NAME의 outputs 확보
-- [ ] 양쪽 앱 Ready/고정 IP/TM Online 확인, 샘플 상태는 별도 관측
+- [ ] 실제 로컬 상태 Complete, 활성 features/skip 확인
+- [ ] 이번 구독/prefix의 config, source Bash 환경 연결
+- [ ] 실패 시 반복 배포/DB 삭제/forceUnlink 없이 진단

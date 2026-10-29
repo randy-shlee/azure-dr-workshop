@@ -15,6 +15,7 @@ import time
 from urllib.parse import urlparse
 import uuid
 
+import certifi
 import dns.asyncresolver
 import dns.resolver
 from azure.core.exceptions import ResourceNotFoundError
@@ -23,14 +24,19 @@ from azure.eventhub.aio import EventHubProducerClient
 from azure.identity.aio import DefaultAzureCredential
 from azure.search.documents.aio import SearchClient
 from azure.storage.blob.aio import BlobServiceClient
-from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, JSONResponse
 import httpx
 import psycopg
 from psycopg.rows import dict_row
 from redis.asyncio.cluster import RedisCluster
 from redis.asyncio.retry import Retry
 from redis.backoff import NoBackoff
+
+if __package__:
+    from .sample_upload import SampleUploader, UploadBusy, UploadError
+else:
+    from sample_upload import SampleUploader, UploadBusy, UploadError
 
 
 LOG = logging.getLogger("dr_dashboard")
@@ -210,6 +216,7 @@ class Runtime:
         self.locks = {"primary": asyncio.Lock(), "secondary": asyncio.Lock()}
         self.http = None
         self.credential = None
+        self.sample_uploader = SampleUploader(self)
 
     def enabled(self, service):
         enabled = self.settings.validate(service)
@@ -259,6 +266,7 @@ class Runtime:
                         port=int(settings.get("REDIS_PORT", "10000")),
                         password=settings.get("REDIS_KEY"), ssl=True,
                         ssl_cert_reqs="required", ssl_check_hostname=True,
+                        address_remap=lambda address: (settings.host("redis"), address[1]),
                         socket_timeout=OP_TIMEOUT, socket_connect_timeout=OP_TIMEOUT,
                         max_connections=8, decode_responses=True,
                         cluster_error_retry_attempts=0, retry=Retry(NoBackoff(), 0),
@@ -284,16 +292,30 @@ async def lifespan(application):
         runtime = Runtime(Settings())
         await runtime.start(stack)
         application.state.runtime = runtime
-        yield
+        try:
+            yield
+        finally:
+            await runtime.sample_uploader.close()
 
 
-app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None)
+app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
 
 
 @app.middleware("http")
 async def no_cache(request, call_next):
-    response = await call_next(request)
+    origin = request.headers.get("origin")
+    expected_origin = f"{request.url.scheme}://{request.headers.get('host', '')}"
+    cross_site = request.headers.get("sec-fetch-site", "").lower() == "cross-site"
+    if request.method not in ("GET", "HEAD", "OPTIONS") and (
+        cross_site or (origin is not None and origin != expected_origin)
+    ):
+        response = JSONResponse({"detail": "Cross-site changes are not allowed"}, status_code=403)
+    else:
+        response = await call_next(request)
     response.headers["Cache-Control"] = "no-store"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
     return response
 
 
@@ -399,7 +421,7 @@ async def pg_operation(runtime, action, record=None):
     connection = await psycopg.AsyncConnection.connect(
         host=settings.get("PG_HOST"), dbname=settings.get("PG_DB"),
         user=settings.get("PG_USER"), password=settings.get("PG_PASSWORD"),
-        sslmode="verify-full", sslrootcert="system", connect_timeout=3,
+        sslmode="verify-full", sslrootcert=certifi.where(), connect_timeout=3,
         options="-c statement_timeout=3000 -c lock_timeout=3000", row_factory=dict_row,
     )
     async with connection:
@@ -608,7 +630,9 @@ def replication_complete(last_sync_time, manifest_end_time):
 
 
 async def sample_inventory(runtime, endpoint):
-    container = runtime.client(f"storage_{endpoint}").get_container_client("sampledata")
+    container = runtime.client(f"storage_{endpoint}").get_container_client(
+        runtime.settings.get("SAMPLE_DATA_CONTAINER", "sampledata")
+    )
     manifest = None
     try:
         async def get_manifest():
@@ -680,7 +704,7 @@ async def sample_endpoint(runtime, endpoint):
         if result["sampled_blob"]:
             async def range_read():
                 client = runtime.client(f"storage_{endpoint}").get_blob_client(
-                    "sampledata", result["sampled_blob"],
+                    runtime.settings.get("SAMPLE_DATA_CONTAINER", "sampledata"), result["sampled_blob"],
                 )
                 downloader = await client.download_blob(
                     offset=0, length=MIB, max_concurrency=1,
@@ -696,6 +720,42 @@ async def sample_endpoint(runtime, endpoint):
         LOG.warning("Sample inventory/read failed (%s): %s", endpoint, type(exc).__name__)
     result["latency_ms"] = round((time.monotonic() - started) * 1000, 2)
     return result
+
+
+@app.get("/api/sampledata/upload")
+async def sample_upload_status(request: Request):
+    uploader = runtime_of(request).sample_uploader
+    try:
+        async with asyncio.timeout(12):
+            return await uploader.status()
+    except Exception as exc:
+        raise HTTPException(503, safe_error(exc)) from None
+
+
+@app.post("/api/sampledata/upload", status_code=202)
+async def sample_upload_start(request: Request):
+    uploader = runtime_of(request).sample_uploader
+    if not uploader.enabled():
+        raise HTTPException(403, "Sample upload is disabled")
+    # Never trust X-Forwarded-* here; uvicorn runs with --no-proxy-headers.
+    origin = request.headers.get("origin", "")
+    if origin != f"{request.url.scheme}://{request.headers.get('host', '')}":
+        raise HTTPException(403, "A same-origin Origin header is required")
+    if request.headers.get("x-confirm-sample-upload") != "10GB":
+        raise HTTPException(403, "Explicit X-Confirm-Sample-Upload: 10GB confirmation is required")
+    if request.headers.get("content-length", "0") != "0" or request.headers.get("transfer-encoding"):
+        raise HTTPException(400, "Upload configuration/body is not accepted")
+    if request.query_params:
+        raise HTTPException(400, "Upload parameters are not accepted")
+    try:
+        async with asyncio.timeout(12):
+            return await uploader.start()
+    except UploadBusy as exc:
+        raise HTTPException(409, str(exc)) from None
+    except UploadError as exc:
+        raise HTTPException(400, str(exc)) from None
+    except Exception as exc:
+        raise HTTPException(503, safe_error(exc)) from None
 
 
 async def last_sync(runtime):

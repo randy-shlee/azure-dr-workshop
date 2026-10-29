@@ -14,10 +14,10 @@ param deployAiSearch bool = true
 param enableAcrGeoReplication bool = false
 param deployAppGateway bool = false
 param deployDnsResolver bool = false
-param enableEventHubsGeoReplication bool = true
-@minValue(300)
+param enableEventHubsGeoRecovery bool = true
+@minValue(1)
 @maxValue(86400)
-param maxReplicationLagSeconds int = 300
+param replicationLagAlertSeconds int = 300
 param fastFailover bool = false
 param aksVmSize string = 'Standard_D4s_v5'
 @minValue(2)
@@ -32,6 +32,7 @@ param administratorLogin string
 @minLength(12)
 param administratorPassword string
 @minValue(1)
+@maxValue(10)
 param sampleDataSizeGB int = 10
 @minValue(1)
 param largeFileSizeGB int = 1
@@ -41,6 +42,7 @@ param smallFileCount int = 2000
 param smallFileSizeMB int = 1
 param skipSampleData bool = false
 param sampleDataImage string = 'mcr.microsoft.com/azure-cli:2.85.0'
+param enableSampleUpload bool = true
 param deployWorkshopBootstrap bool = true
 param bootstrapRunbookUri string = ''
 param bootstrapRunbookSha256 string = ''
@@ -65,8 +67,8 @@ module infrastructure 'main.bicep' = {
     enableAcrGeoReplication: enableAcrGeoReplication
     deployAppGateway: deployAppGateway
     deployDnsResolver: deployDnsResolver
-    enableEventHubsGeoReplication: enableEventHubsGeoReplication
-    maxReplicationLagSeconds: maxReplicationLagSeconds
+    enableEventHubsGeoRecovery: enableEventHubsGeoRecovery
+    replicationLagAlertSeconds: replicationLagAlertSeconds
     fastFailover: fastFailover
     aksVmSize: aksVmSize
     aksNodeCount: aksNodeCount
@@ -81,6 +83,7 @@ module infrastructure 'main.bicep' = {
     smallFileSizeMB: smallFileSizeMB
     skipSampleData: skipSampleData
     sampleDataImage: sampleDataImage
+    enableSampleUpload: enableSampleUpload
     deployWorkshopBootstrap: deployWorkshopBootstrap
     bootstrapRunbookUri: bootstrapRunbookUri
     bootstrapRunbookSha256: bootstrapRunbookSha256

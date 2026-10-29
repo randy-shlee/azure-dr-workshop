@@ -168,18 +168,89 @@ tm_assert_online() {
     .endpointStatus == "Enabled" and .endpointMonitorStatus == "Online")' <<<"$doc" >/dev/null ||
     die 'Traffic Manager requires two Enabled/Online endpoints before a drill; Degraded/CheckingEndpoint/Disabled is not success.'
 }
+storage_account() {
+  az storage account show --ids "$(cfg '.primary.storage.id')" --expand geoReplicationStats -o json
+}
+storage_assert_region() {
+  local key="$1" doc="$2" other
+  case "$key" in primary) other=secondary;; secondary) other=primary;; *) die "Unknown Storage target: $key";; esac
+  jq -e --arg primary "$(cfg ".$key.location")" --arg secondary "$(cfg ".$other.location")" '
+    .sku.name == "Standard_RAGRS" and .provisioningState == "Succeeded" and
+    (.failoverInProgress != true) and .primaryLocation == $primary and .secondaryLocation == $secondary
+  ' <<<"$doc" >/dev/null || die "Storage must be RA-GRS with active $key and its paired secondary; inspect storage account state."
+}
+storage_planned_failover() {
+  local key="$1" other doc
+  case "$key" in primary) other=secondary;; secondary) other=primary;; *) die "Unknown Storage target: $key";; esac
+  doc="$(storage_account)"
+  if [[ "$(jq -r '.primaryLocation' <<<"$doc")" == "$(cfg ".$key.location")" ]]; then
+    storage_assert_region "$key" "$doc"
+    note "Storage $key is already active; no account failover."
+    return
+  fi
+  storage_assert_region "$other" "$doc"
+  jq -e '.geoReplicationStats.status == "Live" and .geoReplicationStats.canPlannedFailover == true' <<<"$doc" >/dev/null ||
+    die 'Storage is not ready for planned failover. Wait for healthy geo-replication; unplanned failover is prohibited.'
+  note "Starting planned Storage account failover to $key; waiting for Azure completion. This can take hours."
+  az storage account failover --ids "$(cfg '.primary.storage.id')" --failover-type Planned --yes -o none
+  doc="$(storage_account)"
+  storage_assert_region "$key" "$doc"
+  printf '%s\n' "$doc" >"$STATE_DIR/storage-active-$key.json"
+  note "Storage $key active; RA-GRS retained. Both apps keep using the primary blob hostname."
+}
+pg_assert_pair() {
+  local key="$1" other primary replica
+  case "$key" in primary) other=secondary;; secondary) other=primary;; *) die "Unknown PostgreSQL target: $key";; esac
+  primary="$(az postgres flexible-server show -g "$(region_rg "$key")" -n "$(cfg ".$key.pg.name")" -o json)"
+  replica="$(az postgres flexible-server show -g "$(region_rg "$other")" -n "$(cfg ".$other.pg.name")" -o json)"
+  jq -e '.state == "Ready" and (.replicationRole | ascii_downcase) == "primary"' <<<"$primary" >/dev/null ||
+    die "PostgreSQL $key is not a Ready primary."
+  MSYS_NO_PATHCONV=1 jq -e --arg source "$(cfg ".$key.pg.id")" '
+    .state == "Ready" and (.replicationRole | ascii_downcase | endswith("replica")) and
+    (.sourceServerResourceId | ascii_downcase) == ($source | ascii_downcase)
+  ' <<<"$replica" >/dev/null || die "PostgreSQL $other is not a Ready replica of $key; refusing a split or standalone topology."
+}
 pg_switchover() {
   local key="$1" role
   role="$(az postgres flexible-server show -g "$(region_rg "$key")" -n "$(cfg ".$key.pg.name")" --query replicationRole -o tsv)"
   case "${role,,}" in
     primary) note "PostgreSQL $key is already primary; no promotion.";;
     replica|asyncreplica|geoasyncreplica|georeplica)
+      local other
+      if [[ "$key" == primary ]]; then other=secondary; else other=primary; fi
+      pg_assert_pair "$other"
       az postgres flexible-server replica promote -g "$(region_rg "$key")" -n "$(cfg ".$key.pg.name")" \
         --promote-mode switchover --promote-option planned -o none;;
     *) die "Unexpected PostgreSQL role '$role'; refusing destructive/standalone promotion.";;
   esac
-  role="$(az postgres flexible-server show -g "$(region_rg "$key")" -n "$(cfg ".$key.pg.name")" --query replicationRole -o tsv)"
-  [[ "${role,,}" == primary ]] || die "PostgreSQL planned switchover not complete: $role"
+  pg_assert_pair "$key"
+}
+dr_verify_data() {
+  local key="$1" url info written readback id
+  url="http://$(cfg '.trafficManager.fqdn')"
+  info="$(curl --fail --silent --show-error --max-time 40 "$url/api/info")"
+  jq -e --arg region "$(cfg ".$key.region")" '.region == $region and .storage_read_mode == "primary"' <<<"$info" >/dev/null ||
+    die "Application is not serving $key with the stable Storage primary endpoint."
+  written="$(curl --fail --silent --show-error --max-time 40 -X POST "$url/api/write")"
+  printf '%s\n' "$written"
+  jq -e '.services.storage_primary.ok == true and .services.postgres.ok == true and (.record.id | type == "string" and length > 0)' <<<"$written" >/dev/null ||
+    die 'Post-switch Storage/PostgreSQL writes failed; routing is not proof of data-plane recovery.'
+  if enabled '.features.deployEventHubs'; then
+    jq -e '.services.event_hubs.ok == true' <<<"$written" >/dev/null ||
+      die 'Event Hubs alias send failed after routing. Metadata recovery does not prove producer access.'
+  fi
+  id="$(jq -er '.record.id' <<<"$written")"
+  readback="$(curl --fail --silent --show-error --max-time 40 "$url/api/read")"
+  printf '%s\n' "$readback"
+  jq -e --arg id "$id" '
+    .services.postgres.ok == true and .services.postgres.data.id == $id and
+    .services.storage.ok == true and .services.storage.data.record.id == $id and
+    .services.storage.data.endpoint_read == "primary"
+  ' <<<"$readback" >/dev/null || die 'Post-switch readback did not recover the written record through both writer endpoints.'
+  if enabled '.features.deployEventHubs'; then
+    jq -e '.services.event_hubs.ok == true' <<<"$readback" >/dev/null ||
+      die 'Event Hubs alias metadata read failed after routing.'
+  fi
 }
 pg_order() {
   local mode="$1" key role

@@ -21,7 +21,43 @@ var zoneNames = [
   'privatelink.agentsvc.azure-automation.net'
 ]
 
-resource gatewayNsg 'Microsoft.Network/networkSecurityGroups@2026-07-01' = if (deployAppGateway) {
+resource aksNsg 'Microsoft.Network/networkSecurityGroups@2025-05-01' = {
+  name: 'vnet-${prefix}-${region}-snet-aks-nsg-${location}'
+  location: location
+  tags: tags
+  properties: {
+    securityRules: deployAppGateway ? [] : [
+      {
+        name: 'Clients'
+        properties: {
+          priority: 100
+          access: 'Allow'
+          direction: 'Inbound'
+          protocol: 'Tcp'
+          sourcePortRange: '*'
+          destinationPortRange: '80'
+          sourceAddressPrefixes: allowedClientCidrs
+          destinationAddressPrefix: '*'
+        }
+      }
+      {
+        name: 'TrafficManager'
+        properties: {
+          priority: 110
+          access: 'Allow'
+          direction: 'Inbound'
+          protocol: 'Tcp'
+          sourcePortRange: '*'
+          destinationPortRange: '80'
+          sourceAddressPrefix: 'AzureTrafficManager'
+          destinationAddressPrefix: '*'
+        }
+      }
+    ]
+  }
+}
+
+resource gatewayNsg 'Microsoft.Network/networkSecurityGroups@2025-05-01' = if (deployAppGateway) {
   name: 'nsg-${prefix}-appgw-${region}'
   location: location
   tags: tags
@@ -95,7 +131,7 @@ resource gatewayNsg 'Microsoft.Network/networkSecurityGroups@2026-07-01' = if (d
     ]
   }
 }
-resource vnet 'Microsoft.Network/virtualNetworks@2026-07-01' = {
+resource vnet 'Microsoft.Network/virtualNetworks@2025-05-01' = {
   name: 'vnet-${prefix}-${region}'
   location: location
   tags: tags
@@ -104,7 +140,10 @@ resource vnet 'Microsoft.Network/virtualNetworks@2026-07-01' = {
     subnets: concat([
       {
         name: 'snet-aks'
-        properties: { addressPrefix: '${subnetPrefix}.0.0/20' }
+        properties: {
+          addressPrefix: '${subnetPrefix}.0.0/20'
+          networkSecurityGroup: { id: aksNsg.id }
+        }
       }
       {
         name: 'snet-pe'
@@ -156,7 +195,7 @@ resource links 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01
   }
 }]
 
-resource publicIp 'Microsoft.Network/publicIPAddresses@2026-07-01' = {
+resource publicIp 'Microsoft.Network/publicIPAddresses@2025-05-01' = {
   name: 'pip-${prefix}-app-${region}'
   location: location
   tags: tags

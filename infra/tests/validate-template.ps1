@@ -16,6 +16,16 @@ function Visit-Template($node) {
 function Assert-True([bool] $Condition, [string] $Message) {
     if (-not $Condition) { throw $Message }
 }
+if (-not $template.parameters.ContainsKey('deployAlerts')) {
+    Assert-True ($template.parameters.sampleDataSizeGB.defaultValue -eq 10 -and
+        $template.parameters.sampleDataSizeGB.maxValue -eq 10) 'Packaged entry point must enforce the 10 GB sample budget.'
+    $core = @($template.resources | Where-Object {
+        $_.type -eq 'Microsoft.Resources/deployments' -and
+        $_.properties.template.parameters.ContainsKey('deployAlerts')
+    })
+    Assert-True ($core.Count -eq 1) 'Expected exactly one shared infrastructure module in the workshop wrapper.'
+    $template = $core[0].properties.template
+}
 Visit-Template $template
 Assert-True ($template.'$schema' -like '*subscriptionDeploymentTemplate*') 'Entry point must be subscription scoped.'
 foreach ($flag in @('deployEventHubs', 'deployRedis', 'deployAiSearch')) {
@@ -27,12 +37,34 @@ foreach ($flag in @('enableAcrGeoReplication', 'deployAppGateway', 'deployDnsRes
 Assert-True ($template.parameters.administratorPassword.type -eq 'secureString') 'PostgreSQL password must be secure.'
 Assert-True ($template.parameters.aksNodeCount.defaultValue -eq 2) 'Approved AKS minimum is two nodes.'
 Assert-True ($template.parameters.aksVmSize.defaultValue -eq 'Standard_D4s_v5') 'Approved default VM changed unexpectedly.'
-Assert-True ($template.parameters.sampleDataSizeGB.defaultValue -eq 100) 'Sample data default must be 100GiB.'
+Assert-True ($template.parameters.sampleDataSizeGB.defaultValue -eq 10 -and $template.parameters.sampleDataSizeGB.maxValue -eq 10) 'Sample size must default to 10 and cannot exceed its budget.'
 Assert-True ($template.parameters.skipSampleData.defaultValue -eq $false) 'Upload must not silently default off.'
-Assert-True ($template.parameters.maxReplicationLagSeconds.minValue -eq 300 -and $template.parameters.maxReplicationLagSeconds.maxValue -eq 86400) 'EH async lag must be 5 minutes..1 day; zero is synchronous.'
+Assert-True ($template.parameters.enableEventHubsGeoRecovery.defaultValue -eq $true) 'Standard metadata Geo-DR must default on.'
+Assert-True (-not $template.parameters.ContainsKey('enableEventHubsGeoReplication') -and -not $template.parameters.ContainsKey('maxReplicationLagSeconds')) 'Premium data replication controls must be removed.'
+Assert-True ($template.parameters.replicationLagAlertSeconds.defaultValue -eq 300) 'PG/Storage alert lag threshold must default to 300 seconds.'
 Assert-True ($template.outputs.config.type -eq 'object') 'Scripts require the config object output.'
+$eventNamespaces = @($script:resources | Where-Object type -eq 'Microsoft.EventHub/namespaces')
+$eventAliases = @($script:resources | Where-Object type -eq 'Microsoft.EventHub/namespaces/disasterRecoveryConfigs')
+Assert-True ($eventNamespaces.Count -eq 2) 'Standard Geo-DR requires two independent namespace declarations.'
+Assert-True ($eventAliases.Count -eq 1) 'Standard Geo-DR requires one metadata alias.'
+$sampleFederation = @($script:resources | Where-Object {
+    $_.type -eq 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials' -and
+    $_.name -match 'aks-sampledata-krs'
+})
+Assert-True ($sampleFederation.Count -eq 1) 'The shared sample identity must also trust the KRS uploader service account.'
+Assert-True ($sampleFederation[0].properties.subject -eq 'system:serviceaccount:drtest:sampledata-upload') 'KRS sample federation must use the exact uploader subject.'
+$sampleFederationModule = @($script:resources | Where-Object name -eq 'sampledata-secondary-federation')
+Assert-True ($sampleFederationModule.Count -eq 1) 'KRS sample federation requires its cross-resource-group module.'
+Assert-True ($sampleFederationModule[0].properties.parameters.issuer.value -match "'aks-krs'") 'Secondary sample federation must use the KRS AKS issuer.'
 foreach ($region in @('primary', 'secondary')) {
-    Assert-True ($template.outputs.config.value[$region].publicIp -match 'outputs.publicIp.value') "$region public IP output is not wired to the network module."
+    $suffix = if ($region -eq 'primary') { 'krc' } else { 'krs' }
+    $config = $template.outputs.config.value
+    $wired = if ($config -is [string]) {
+        $config -match "'Microsoft.Resources/deployments', 'network-$suffix'\), '[^']+'\)\.outputs\.publicIp\.value"
+    } else {
+        $config[$region].publicIp -match 'outputs.publicIp.value'
+    }
+    Assert-True $wired "$region public IP output is not wired to the network module."
 }
 $dashboardReaders = @($script:resources | Where-Object {
     $_.type -eq 'Microsoft.Authorization/roleAssignments' -and
@@ -75,6 +107,8 @@ foreach ($resource in $script:resources) {
         Assert-True ($resource.properties.agentPoolProfiles.Count -eq 1) 'Extra AKS pool costs are prohibited.'
         Assert-True (-not $resource.properties.agentPoolProfiles[0].availabilityZones) 'AKS zones must not be set.'
         Assert-True ($resource.properties.agentPoolProfiles[0].enableAutoScaling -eq $false) 'Autoscaler must be off.'
+        Assert-True (-not $resource.properties.agentPoolProfiles[0].upgradeSettings.ContainsKey('maxUnavailable')) 'System pools must not set maxUnavailable.'
+        Assert-True ($resource.properties.agentPoolProfiles[0].upgradeSettings.maxSurge -eq '1') 'System pool upgrades require one surge node.'
     }
     if ($resource.type -eq 'Microsoft.Storage/storageAccounts') {
         Assert-True ($resource.sku.name -eq 'Standard_RAGRS') 'Storage must use RA-GRS.'
@@ -98,13 +132,20 @@ foreach ($resource in $script:resources) {
         Assert-True ($resource.properties.adminUserEnabled -eq $false) 'ACR admin keys must be off.'
     }
     if ($resource.type -eq 'Microsoft.EventHub/namespaces') {
-        Assert-True ($resource.sku.name -eq 'Premium' -and $resource.sku.capacity -eq 1) 'EH must use minimum Premium 1 PU.'
+        Assert-True ($resource.sku.name -eq 'Standard' -and $resource.sku.capacity -eq 1) 'EH must use Standard one TU per namespace.'
         Assert-True ($resource.properties.disableLocalAuth -eq $true) 'EH must use Entra authentication.'
+        Assert-True (-not $resource.properties.ContainsKey('geoDataReplication')) 'Standard Geo-DR must not configure event-data replication.'
+        Assert-True ($resource.properties.kafkaEnabled -eq $false) 'Kafka endpoint charges must not be enabled.'
+    }
+    if ($resource.type -eq 'Microsoft.EventHub/namespaces/disasterRecoveryConfigs') {
+        Assert-True ($resource.properties.partnerNamespace -match 'eh-namespace-krs.*outputs.config.value.id') 'Geo-DR must pair the separate Korea South namespace.'
+        Assert-True ($resource.dependsOn.Count -ge 4) 'Both namespaces need private endpoints in both VNets before pairing.'
     }
     if ($resource.type -eq 'Microsoft.Search/searchServices') {
         Assert-True ($resource.sku.name -eq 'basic') 'Search must use Basic.'
         Assert-True ($resource.properties.replicaCount -eq 1 -and $resource.properties.partitionCount -eq 1) 'Search must have one replica/partition.'
         Assert-True ($resource.properties.disableLocalAuth -eq $true) 'Search must use Entra authentication.'
+        Assert-True (-not $resource.properties.ContainsKey('authOptions')) 'Search authOptions conflicts with disabled local auth.'
     }
     if ($resource.type -eq 'Microsoft.Cache/redisEnterprise') {
         Assert-True ($resource.sku.name -eq 'Balanced_B3') 'Redis must use minimum geo-enabled B3.'
@@ -112,6 +153,7 @@ foreach ($resource in $script:resources) {
         Assert-True (-not $resource.zones) 'Redis must not request zones.'
     }
     if ($resource.type -eq 'Microsoft.Cache/redisEnterprise/databases') {
+        Assert-True ($resource.properties.accessKeysAuthentication -eq 'Enabled') 'Workshop Secret-based Redis login requires access keys to be explicitly enabled.'
         Assert-True ($resource.properties.persistence.aofEnabled -eq $false -and $resource.properties.persistence.rdbEnabled -eq $false) 'Redis persistence must be off.'
         Assert-True ($resource.properties.geoReplication.groupNickname -ne '') 'Redis databases must join an active geo group.'
     }

@@ -1,5 +1,8 @@
-__pycache__
-*.py[cod]
-.venv
-.env*
-.pytest_cache
+**
+!Dockerfile
+!requirements.txt
+!main.py
+!sample_layout.py
+!sample_upload.py
+!static/
+!static/index.html

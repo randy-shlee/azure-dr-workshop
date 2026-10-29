@@ -21,6 +21,7 @@ resource database 'Microsoft.Cache/redisEnterprise/databases@2026-09-01' = {
   parent: redis
   name: 'default'
   properties: {
+    accessKeysAuthentication: 'Enabled'
     clientProtocol: 'Encrypted'
     port: 10000
     clusteringPolicy: 'OSSCluster'

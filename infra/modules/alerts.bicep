@@ -2,7 +2,7 @@ param prefix string
 param tags object
 param owner string
 param postgresIds array
-param eventHubsId string = ''
+param eventHubsIds array = []
 param redisIds array = []
 param storageId string
 param trafficManagerId string
@@ -34,19 +34,20 @@ module pg 'metric-alert.bicep' = [for (id, i) in postgresIds: {
     description: 'Read-replica lag; monitor both servers so alerts survive switchover.'
   }
 }]
-module eh 'metric-alert.bicep' = if (!empty(eventHubsId)) {
-  name: 'eh-alert'
+module eh 'metric-alert.bicep' = [for (id, i) in eventHubsIds: {
+  name: 'eh-alert-${i}'
   params: {
-    name: '${prefix}-eh-lag'
+    name: '${prefix}-eh-server-errors-${i}'
     tags: tags
-    resourceId: eventHubsId
+    resourceId: id
     actionGroupId: action.id
     metricNamespace: 'Microsoft.EventHub/namespaces'
-    metricName: 'ReplicationLagDuration'
-    threshold: replicationLagSeconds
-    description: 'Event Hubs asynchronous geo-replication lag in seconds.'
+    metricName: 'ServerErrors'
+    threshold: 0
+    aggregation: 'Total'
+    description: 'Standard namespace server errors. Geo-DR replicates metadata only; no event-data replication lag exists.'
   }
-}
+}]
 // A 1h metric window alone can fire on its first zero sample. Require all 60
 // completed one-minute buckets to be present and unhealthy instead.
 resource redis 'Microsoft.Insights/scheduledQueryRules@2026-03-01' = if (!empty(redisIds)) {

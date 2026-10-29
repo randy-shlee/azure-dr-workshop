@@ -1,5 +1,5 @@
 #requires -Version 7.2
-param([string]$TemplatePath, [string]$PortalTemplatePath)
+param([string]$TemplatePath, [string]$PortalTemplatePath, [string]$EventHubsUpdateTemplatePath)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $failures = [Collections.Generic.List[string]]::new()
@@ -49,7 +49,7 @@ Test 'source bundle contains only canonical allowlisted files, with LF Bash' {
     $memory = [IO.MemoryStream]::new([Convert]::FromBase64String($script:WorkshopBundle))
     $zip = [IO.Compression.ZipArchive]::new($memory, [IO.Compression.ZipArchiveMode]::Read)
     try {
-        Assert ($zip.Entries.Count -eq 13) 'Unexpected source allowlist.'
+        Assert ($zip.Entries.Count -eq 14) 'Unexpected source allowlist.'
         Assert (@($zip.Entries | Where-Object { $_.FullName -match '\.state|\.env|app/main|image\.tar|secret' }).Count -eq 0) 'Sensitive/unnecessary file included.'
         foreach ($entry in $zip.Entries) {
             $reader = [IO.StreamReader]::new($entry.Open())
@@ -112,6 +112,39 @@ Test 'portal JSON defaults differ explicitly from CLI and contain no administrat
     $template = @{ parameters = @{} }
     foreach ($key in @('deployWorkshopBootstrap','sampleDataSizeGB','smallFileCount','bootstrapRunbookUri','bootstrapRunbookSha256','appImageArchiveUri','appImageArchiveSha256')) {
         $template.parameters[$key] = @{}
+    }
+    Test 'unapproved remote Docker endpoints are rejected before build-context transfer' {
+        Assert-DockerEndpoint 'npipe://local-test-engine' ''
+        $previousTls = $env:DOCKER_TLS_VERIFY
+        try {
+            $env:DOCKER_TLS_VERIFY = ''
+            Assert-Throws { Assert-DockerEndpoint 'tcp://untrusted.example:2376' '' } 'explicit AzureBuildConfigPath'
+        } finally { $env:DOCKER_TLS_VERIFY = $previousTls }
+    }
+    Test 'local deployment rejects corrupt or blocked releases before Azure mutation' {
+        $folder = Join-Path $root ".state\local-package-test-$PID"
+        $prefix = 't' + [Guid]::NewGuid().ToString('N').Substring(0, 10)
+        $state = Join-Path $root ".state\deployments\$prefix"
+        $null = New-Item -ItemType Directory -Path $folder
+        try {
+            '{}' | Set-Content -LiteralPath (Join-Path $folder 'azuredeploy.json')
+            @{ templateSha256 = '0' * 64 } | ConvertTo-Json |
+                Set-Content -LiteralPath (Join-Path $folder 'release-manifest.json')
+            Assert-Throws {
+                & (Join-Path $root 'scripts\deploy-local-package.ps1') -ReleaseDirectory $folder `
+                    -Prefix $prefix -SubscriptionId test -AllowedClientCidrs '203.0.113.1/32'
+            } 'Release asset integrity check failed'
+            @{ blocked = $true } | ConvertTo-Json |
+                Set-Content -LiteralPath (Join-Path $folder 'release-manifest.json')
+            Assert-Throws {
+                & (Join-Path $root 'scripts\deploy-local-package.ps1') -ReleaseDirectory $folder `
+                    -Prefix $prefix -SubscriptionId test -AllowedClientCidrs '203.0.113.1/32'
+            } 'release is blocked'
+        } finally {
+            Remove-Item -LiteralPath (Join-Path $folder 'azuredeploy.json'), (Join-Path $folder 'release-manifest.json')
+            Remove-Item -LiteralPath $folder
+            if (Test-Path -LiteralPath $state) { Remove-Item -LiteralPath $state }
+        }
     }
     $template.parameters.allowedClientCidrs = @{ defaultValue = @('old-IP') }
     $result = Set-PortalDefaults $template 'https://github.com/a/b/releases/download/v1.0.0' ('a' * 64) ('b' * 64)
@@ -227,6 +260,8 @@ Test 'real local packaging flow is mocked through build/save/compression/ARM/but
         $manifest = Get-Content -Raw (Join-Path $stage 'release-manifest.json') | ConvertFrom-Json
         $image = Join-Path $stage 'app-image.tar.gz'
         Assert ((Get-FileHash $image).Hash.ToLowerInvariant() -eq $manifest.imageSha256) 'Archive hash does not match.'
+        Assert ((Get-FileHash (Join-Path $stage 'deployment-tools.zip')).Hash.ToLowerInvariant() -eq $manifest.toolsSha256) 'Deployment tool archive hash does not match.'
+        Assert ($manifest.uploadMaxBytes -eq 10000000000 -and $manifest.imageTag -eq "drtest-app:$version") 'Local deployment image/cap metadata is missing.'
         Assert ($global:WorkshopTestDockerCalls[2].args[0] -eq 'build' -and $global:WorkshopTestDockerCalls[2].args[-1] -eq '.') 'Wrong build context.'
         Assert ($global:WorkshopTestDockerCalls[2].location -eq (Join-Path $root 'app')) 'Workspace sent instead of app-only context.'
         Assert (@($global:WorkshopTestDockerCalls | Where-Object { $_.args[0] -in @('push','login') }).Count -eq 0) 'Published without approval.'
@@ -245,7 +280,7 @@ Test 'real local packaging flow is mocked through build/save/compression/ARM/but
         Assert ($errors.Count -eq 0) 'Generated runbook does not parse.'
     } finally {
         Remove-Item Function:script:docker, Function:script:az, Function:script:Invoke-WebRequest
-        foreach ($name in @('app-image.tar','app-image.tar.gz','workshop-bootstrap.ps1','azuredeploy.json','release-manifest.json','deploy-button.md','kubectl.sha256')) {
+        foreach ($name in @('app-image.tar','app-image.tar.gz','workshop-bootstrap.ps1','azuredeploy.json','release-manifest.json','deploy-button.md','kubectl.sha256','deployment-tools.zip','DEPLOYMENT.md')) {
             $path = Join-Path $stage $name
             if (Test-Path $path) { Remove-Item -LiteralPath $path }
         }
@@ -289,6 +324,34 @@ if ($TemplatePath) {
         $acrModule = $template.resources | Where-Object name -eq 'acr'
         $registry = $acrModule.properties.template.resources | Where-Object type -eq 'Microsoft.ContainerRegistry/registries'
         Assert ($registry.properties.publicNetworkAccess -eq 'Disabled' -and $registry.properties.networkRuleBypassOptions -eq 'None') 'ACR was relaxed.'
+    }
+}
+if ($EventHubsUpdateTemplatePath) {
+    Test 'Event Hubs migration touches no other data layer and scopes existing network IDs correctly' {
+        $update = Get-Content -Raw $EventHubsUpdateTemplatePath | ConvertFrom-Json -AsHashtable
+        function Get-UpdateResources($node) {
+            foreach ($resource in $node.resources) {
+                $resource
+                if ($resource.properties.template) { Get-UpdateResources $resource.properties.template }
+            }
+        }
+        $resources = @(Get-UpdateResources $update)
+        $allowed = @(
+            'Microsoft.Resources/deployments', 'Microsoft.EventHub/namespaces',
+            'Microsoft.EventHub/namespaces/eventhubs', 'Microsoft.EventHub/namespaces/disasterRecoveryConfigs',
+            'Microsoft.Authorization/roleAssignments', 'Microsoft.Insights/diagnosticSettings',
+            'Microsoft.Network/privateEndpoints', 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups'
+        )
+        Assert (@($resources | Where-Object { $_.type -notin $allowed }).Count -eq 0) 'EH-only migration must not redeploy databases, clusters, storage or resource groups.'
+        Assert (@($resources | Where-Object type -eq 'Microsoft.EventHub/namespaces').Count -eq 2) 'Expected two Standard namespaces.'
+        Assert (@($resources | Where-Object type -eq 'Microsoft.EventHub/namespaces/disasterRecoveryConfigs').Count -eq 1) 'Expected one alias.'
+        $parameters = $update.resources[0].properties.parameters
+        foreach ($name in @('primarySubnetId','secondarySubnetId','primaryDnsZoneId','secondaryDnsZoneId')) {
+            Assert ($parameters[$name].value.Contains('resourceId(subscription().subscriptionId,')) "Missing explicit subscription in existing $name."
+        }
+        Assert ($update.outputs.config.type -eq 'object') 'Migration must export a complete merged config.'
+        Assert ($update.outputs.config.value.StartsWith('[shallowMerge(')) 'Recursive union would restore the removed legacy feature flag.'
+        Assert ([regex]::Matches($update.outputs.config.value, 'shallowMerge\(').Count -eq 3) 'Replace both regional EH objects without retaining legacy namespace metadata.'
     }
 }
 Set-Item Function:script:Invoke-Arm -Value $originalArm

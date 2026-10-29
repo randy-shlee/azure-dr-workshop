@@ -19,18 +19,31 @@ spec:
       initContainers:
         - name: azcopy
           image: mcr.microsoft.com/azure-cli:2.85.0
+          env:
+            - {name: UPLOAD_MODE, value: upload}
           command:
             - /bin/bash
             - -Eeuo
             - pipefail
             - -c
             - |
+              if [[ "$UPLOAD_MODE" == verify ]]; then
+                echo 'Read-only verification does not require AzCopy.'
+                exit 0
+              fi
               cd /tools
               curl --fail --location --retry 5 --connect-timeout 30 --max-time 300 \
                 https://github.com/Azure/azure-storage-azcopy/releases/download/v10.34.1/azcopy_linux_amd64_10.34.1.tar.gz \
                 -o azcopy.tar.gz
               echo 'a0021809e53f2b40705509626b8d44f2312fa8ef39deeb941fcffd35012bf6d1  azcopy.tar.gz' | sha256sum -c -
-              tar -xzf azcopy.tar.gz --strip-components=1 --wildcards '*/azcopy'
+              python3 - <<'PY'
+              import shutil
+              import tarfile
+
+              with tarfile.open("azcopy.tar.gz", "r:gz") as archive:
+                  with archive.extractfile("azcopy_linux_amd64_10.34.1/azcopy") as source, open("azcopy", "wb") as target:
+                      shutil.copyfileobj(source, target)
+              PY
               rm azcopy.tar.gz
               chmod 755 /tools/azcopy
               /tools/azcopy --version
@@ -45,9 +58,10 @@ spec:
           command: [/bin/bash, /program/sampledata-program.sh]
           env:
             - {name: STORAGE_ENDPOINT, value: "__STORAGE_ENDPOINT__"}
-            - {name: SIZE_GB, value: "100"}
-            - {name: LARGE_FILE_SIZE_GB, value: "10"}
-            - {name: SMALL_FILE_COUNT, value: "20000"}
+            - {name: SAMPLE_DATA_CONTAINER, value: sampledata}
+            - {name: SIZE_GB, value: "10"}
+            - {name: LARGE_FILE_SIZE_GB, value: "1"}
+            - {name: SMALL_FILE_COUNT, value: "2000"}
             - {name: SMALL_FILE_SIZE_MB, value: "1"}
             - {name: UPLOAD_MODE, value: upload}
             - {name: AZCOPY_AUTO_LOGIN_TYPE, value: WORKLOAD}

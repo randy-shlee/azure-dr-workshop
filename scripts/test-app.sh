@@ -30,7 +30,11 @@ request GET /api/tm
 # POST is not retried by this client: Event Hubs can deliver at least once.
 request POST /api/write
 request GET /api/read
-request GET /api/sampledata
+if [[ "${SKIP_SAMPLE_CHECK:-false}" == true ]]; then
+  note 'PENDING: sample API verification was explicitly skipped; no sample readiness is claimed.'
+else
+  request GET /api/sampledata
+fi
 for key in primary secondary; do
   note "Pod-side connection checks: $(cfg ".$key.region")"
   result="$(aks_run "$key" "kubectl -n drtest exec deployment/drtest-app -- python -c 'import urllib.request; print(urllib.request.urlopen(\"http://127.0.0.1:8000/api/check\", timeout=30).read().decode())'")"

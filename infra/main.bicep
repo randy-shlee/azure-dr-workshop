@@ -24,12 +24,11 @@ param deployAlerts bool = false
 // exact Last Sync Time age alerting (not the native replication-lag metric).
 // https://learn.microsoft.com/azure/azure-monitor/metrics/metrics-custom-overview
 param enableStorageLastSyncCustomMetricAlert bool = false
-// TODO: Check Korea South capacity/feature availability in your subscription:
-// https://learn.microsoft.com/azure/event-hubs/geo-replication
-param enableEventHubsGeoReplication bool = true
-@minValue(300)
+@description('Standard Geo-DR replicates metadata only. Alias failover is fail-forward, not reversible data replication.')
+param enableEventHubsGeoRecovery bool = true
+@minValue(1)
 @maxValue(86400)
-param maxReplicationLagSeconds int = 300
+param replicationLagAlertSeconds int = 300
 param fastFailover bool = false
 param aksVmSize string = 'Standard_D4s_v5'
 @minValue(2)
@@ -44,15 +43,17 @@ param administratorLogin string
 @minLength(12)
 param administratorPassword string
 @minValue(1)
-param sampleDataSizeGB int = 100
+@maxValue(10)
+param sampleDataSizeGB int = 10
 @minValue(1)
 param largeFileSizeGB int = 1
 @minValue(0)
-param smallFileCount int = 20000
+param smallFileCount int = 2000
 @minValue(1)
 param smallFileSizeMB int = 1
 param skipSampleData bool = false
 param sampleDataImage string = 'mcr.microsoft.com/azure-cli:2.85.0'
+param enableSampleUpload bool = true
 
 @description('Opt-in portal bootstrap. Only its Automation account permits public networking; no webhook or local authentication is enabled.')
 param deployWorkshopBootstrap bool = false
@@ -208,6 +209,14 @@ module aksKrs 'modules/aks.bicep' = {
     podCidr: '10.245.0.0/16'
   }
 }
+module sampleSecondaryFederation 'modules/sampledata-secondary-federation.bicep' = {
+  name: 'sampledata-secondary-federation'
+  scope: krc
+  params: {
+    identityName: idKrc.outputs.sample.name
+    issuer: aksKrs.outputs.config.oidcIssuer
+  }
+}
 module logs 'modules/workspace.bicep' = {
   name: 'monitor-workspace'
   scope: krc
@@ -279,8 +288,7 @@ module eventhubs 'modules/eventhubs.bicep' = if (deployEventHubs) {
     primaryDnsZoneId: netKrc.outputs.dnsZoneIds['privatelink.servicebus.windows.net']
     secondaryDnsZoneId: netKrs.outputs.dnsZoneIds['privatelink.servicebus.windows.net']
     principalIds: appPrincipals
-    enableGeoReplication: enableEventHubsGeoReplication
-    maxReplicationLagSeconds: maxReplicationLagSeconds
+    enableGeoRecovery: enableEventHubsGeoRecovery
     workspaceId: logs.outputs.id
   }
 }
@@ -374,12 +382,12 @@ module alerts 'modules/alerts.bicep' = if (deployAlerts) {
     tags: tags
     owner: owner
     postgresIds: [postgres.outputs.config.primary.id, postgres.outputs.config.secondary.id]
-    eventHubsId: deployEventHubs && enableEventHubsGeoReplication ? eventhubs!.outputs.config.id : ''
+    eventHubsIds: deployEventHubs ? [eventhubs!.outputs.config.primary.id, eventhubs!.outputs.config.secondary.id] : []
     redisIds: deployRedis ? [redis!.outputs.config.primary.id, redis!.outputs.config.secondary.id] : []
     storageId: storage.outputs.config.id
     trafficManagerId: tm.outputs.config.id
     workspaceId: logs.outputs.id
-    replicationLagSeconds: maxReplicationLagSeconds
+    replicationLagSeconds: replicationLagAlertSeconds
     enableStorageLastSyncCustomMetricAlert: enableStorageLastSyncCustomMetricAlert
   }
 }
@@ -395,7 +403,7 @@ module redisMetricsKrs 'modules/redis-diagnostics.bicep' = if (deployRedis && de
 }
 
 var environmentConfig = {
-  schemaVersion: 1
+  schemaVersion: 2
   prefix: prefix
   primaryResourceGroup: krc.name
   secondaryResourceGroup: krs.name
@@ -416,7 +424,7 @@ var environmentConfig = {
     appGateway: deployAppGateway ? gatewayKrc!.outputs.config : {}
     storage: storage.outputs.config
     acr: acr.outputs.config
-    eventHubs: deployEventHubs ? eventhubs!.outputs.config : {}
+    eventHubs: deployEventHubs ? eventhubs!.outputs.config.primary : {}
     pg: postgres.outputs.config.primary
     redis: deployRedis ? redis!.outputs.config.primary : {}
     search: deployAiSearch ? search!.outputs.config.primary : {}
@@ -430,12 +438,13 @@ var environmentConfig = {
     appGateway: deployAppGateway ? gatewayKrs!.outputs.config : {}
     storage: storage.outputs.config
     acr: acr.outputs.config
-    eventHubs: deployEventHubs ? eventhubs!.outputs.config : {}
+    eventHubs: deployEventHubs ? eventhubs!.outputs.config.secondary : {}
     pg: postgres.outputs.config.secondary
     redis: deployRedis ? redis!.outputs.config.secondary : {}
     search: deployAiSearch ? search!.outputs.config.secondary : {}
   }
   postgres: postgres.outputs.config
+  eventHubs: deployEventHubs ? eventhubs!.outputs.config : {}
   trafficManager: tm.outputs.config
   sampleData: {
     clientId: idKrc.outputs.sample.clientId
@@ -446,10 +455,13 @@ var environmentConfig = {
     smallFileSizeMB: smallFileSizeMB
     skip: skipSampleData
     image: sampleDataImage
+    maxBytes: 10000000000
+    containerName: 'sampledata'
+    uploadEnabled: enableSampleUpload
   }
   features: {
     deployEventHubs: deployEventHubs
-    enableEventHubsGeoReplication: enableEventHubsGeoReplication
+    enableEventHubsGeoRecovery: deployEventHubs && enableEventHubsGeoRecovery
     deployRedis: deployRedis
     deployAiSearch: deployAiSearch
     enableAcrGeoReplication: enableAcrGeoReplication

@@ -24,8 +24,8 @@ check_region() {
       note "$key $resource role-aware metric: $metric ($aggregation); inspect missing samples rather than interpreting them as zero."
       az monitor metrics list --resource "$(cfg ".$key.$resource.id")" --metric "$metric" \
         --interval PT1M --offset 1h --aggregation "$aggregation" -o json
-    done < <(jq -r '.[] | select(.name | test("^(ReplicationLagDuration|geoReplicationHealthy|physical_replication_delay_in_seconds)$";"i")) |
-      [.name,(if (.aggregations | index("Maximum")) != null then "Maximum" else .aggregations[0] end)] | @tsv' <<<"$definitions")
+    done < <(jq -r '.[] | select(.name | test("^(ServerErrors|geoReplicationHealthy|physical_replication_delay_in_seconds)$";"i")) |
+      [.name,(if .name=="ServerErrors" then "Total" elif (.aggregations | index("Maximum")) != null then "Maximum" else .aggregations[0] end)] | @tsv' <<<"$definitions")
   done
   aks_run "$key" 'kubectl -n drtest get deployment,pods,service; kubectl -n drtest rollout status deployment/drtest-app --timeout=90s'
   local host
@@ -34,9 +34,13 @@ check_region() {
 }
 step primary-check check_region primary
 step secondary-check check_region secondary
-step storage-replication az storage account show --ids "$(cfg '.primary.storage.id')" --expand geoReplicationStats \
-  --query '{status:geoReplicationStats.status,lastSyncTime:geoReplicationStats.lastSyncTime}' -o json
-if enabled '.features.deployEventHubs' && enabled '.features.enableEventHubsGeoReplication'; then step event-hubs-status bash "$ROOT_DIR/scripts/eh-georeplication.sh" status; fi
+step postgres-pair pg_assert_pair primary
+storage="$(storage_account)"
+printf '%s\n' "$storage"
+step storage-baseline storage_assert_region primary "$storage"
+jq -e '.geoReplicationStats.status == "Live" and .geoReplicationStats.canPlannedFailover == true' <<<"$storage" >/dev/null ||
+  die 'Storage geo-replication must be healthy and ready for planned account failover before starting the drill.'
+if enabled '.features.deployEventHubs' && enabled '.features.enableEventHubsGeoRecovery'; then step event-hubs-metadata-ready bash "$ROOT_DIR/scripts/eh-georecovery.sh" wait krc; fi
 step traffic-manager tm_assert_online
 # Use the caller's resolver; Azure's internal recursive resolver is not reachable outside Azure.
 step dns nslookup "$(cfg '.trafficManager.fqdn')"

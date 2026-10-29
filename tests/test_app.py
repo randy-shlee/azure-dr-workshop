@@ -39,6 +39,28 @@ class RouteTests(unittest.TestCase):
         self.assertEqual(response.json(), {"status": "ok", "region": "krs"})
         self.assertEqual(response.headers["cache-control"], "no-store")
 
+    def test_write_rejects_cross_site_requests_before_backend_access(self):
+        cases = (
+            {"Origin": "https://untrusted.example"},
+            {"Origin": "null"},
+            {"Sec-Fetch-Site": "cross-site"},
+        )
+        with patch.object(main, "write_operation", new=AsyncMock(return_value={"written": True})) as operation, patch.object(
+            main, "resolve_ips", new=AsyncMock(return_value=["10.10.1.2"])
+        ):
+            for headers in cases:
+                with self.subTest(headers=headers):
+                    response = self.client.post("/api/write", headers=headers)
+                    self.assertEqual(response.status_code, 403)
+            operation.assert_not_awaited()
+
+    def test_browser_security_headers_and_schema_not_exposed(self):
+        response = self.client.get("/healthz")
+        self.assertEqual(response.headers.get("x-content-type-options"), "nosniff")
+        self.assertEqual(response.headers.get("x-frame-options"), "DENY")
+        self.assertEqual(response.headers.get("referrer-policy"), "no-referrer")
+        self.assertEqual(self.client.get("/openapi.json").status_code, 404)
+
     def test_info_does_not_trust_forwarded_headers(self):
         response = self.client.get("/api/info", headers={
             "host": "literal.example:8123",
@@ -327,6 +349,7 @@ class LogicTests(unittest.IsolatedAsyncioTestCase):
         with patch.object(main.psycopg.AsyncConnection, "connect", new=AsyncMock(return_value=connection)) as connect:
             await main.pg_operation(runtime, "write", record)
         self.assertEqual(connect.await_args.kwargs["sslmode"], "verify-full")
+        self.assertEqual(connect.await_args.kwargs["sslrootcert"], main.certifi.where())
         query, parameters = cursor.execute.await_args.args
         self.assertIn("ON CONFLICT", query)
         self.assertEqual(parameters, ("one", "krs", record["ts"]))
@@ -368,6 +391,7 @@ class LogicTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(kwargs["ssl_check_hostname"])
         self.assertEqual(kwargs["port"], 10000)
         self.assertEqual(kwargs["cluster_error_retry_attempts"], 0)
+        self.assertEqual(kwargs["address_remap"](("10.10.16.19", 8500)), ("cache.example", 8500))
         redis.aclose.assert_awaited_once()
         credential.__aexit__.assert_awaited_once()
 

@@ -51,6 +51,10 @@
   </section>
   <section class="panel">
     <h2>샘플 데이터 복제 — 버튼을 눌렀을 때만 조회</h2>
+    <button id="sample-upload" disabled>샘플 데이터 업로드 / 재개</button>
+    <span class="muted">서버 고정 설정 · 최대 10 GB (10,000,000,000 bytes, 10 GiB 아님)</span>
+    <p id="upload-status" role="status" aria-live="polite">업로드 상태 확인 중…</p>
+    <progress id="upload-progress" max="100" value="0" hidden aria-label="샘플 업로드 진행률"></progress>
     <div id="sample-summary"><span>Last Sync Time: —</span><span>Manifest 종료: —</span><span>복제 완료: 미확인</span></div>
     <div class="scroll"><table><thead><tr><th>엔드포인트</th><th>상태</th><th>대형 파일</th><th>소형 파일</th><th>용량(GiB)</th><th>1MiB 읽기(ms)</th><th>목록 캐시</th></tr></thead><tbody id="sample-rows"></tbody></table></div>
     <details><summary>Manifest / 상세 결과</summary><pre id="raw-samples">아직 조회하지 않았습니다.</pre></details>
@@ -175,6 +179,36 @@ $("refresh").addEventListener("click",refresh);
 $("write").addEventListener("click",()=>operation("write","/api/write","쓰기","POST"));
 $("read").addEventListener("click",()=>operation("read","/api/read","읽기"));
 $("sample").addEventListener("click",()=>operation("sample","/api/sampledata","샘플 데이터"));
+let uploadPolling=false;
+function renderUpload(result) {
+  const active=["queued","running"].includes(result.status);
+  $("sample-upload").disabled=!result.enabled||active;
+  $("upload-progress").hidden=!result.bytes;
+  $("upload-progress").value=result.bytes?100*(result.completed_bytes||0)/result.bytes:0;
+  $("upload-status").textContent="업로드: "+result.status+(result.bytes?" · "+(result.completed_count||0)+"/"+result.count+" 파일 · "+(result.completed_bytes||0)+"/"+result.bytes+" bytes":"")+(result.error?" · "+result.error:"");
+  $("upload-status").style.color=["failed","lease_lost","cancelled","interrupted"].includes(result.status)?"#a4262c":"";
+}
+async function pollUpload() {
+  if(uploadPolling) return;
+  uploadPolling=true;
+  try {renderUpload(await api("/api/sampledata/upload"));}
+  catch(error) {$("upload-status").textContent="업로드 상태 조회 실패: "+error.message;}
+  finally {uploadPolling=false;}
+}
+$("sample-upload").addEventListener("click",async()=>{
+  if(!confirm("샘플 데이터를 업로드/재개합니다. 최대 10 GB = 10,000,000,000 bytes (10 GiB 아님), 저장소 비용이 발생합니다. 서버의 고정 설정만 사용하며 기존 데이터는 삭제하지 않습니다. 계속하시겠습니까?")) return;
+  $("sample-upload").disabled=true;
+  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),20000);
+  try {
+    const response=await fetch("/api/sampledata/upload",{method:"POST",cache:"no-store",signal:controller.signal,headers:{"X-Confirm-Sample-Upload":"10GB",Accept:"application/json"}});
+    const result=await response.json();
+    if(!response.ok) throw new Error(result.detail||"HTTP "+response.status);
+    renderUpload({...result,enabled:true});
+  } catch(error) {$("upload-status").textContent="업로드 시작 실패: "+error.message;$("sample-upload").disabled=false;}
+  finally {clearTimeout(timer);}
+});
+setInterval(pollUpload,5000);
+pollUpload();
 setInterval(()=>{if($("auto").checked) refresh();},10000);
 renderChecks({services:Object.fromEntries(Object.keys(names).map(key=>[key,{status:"pending"}]))});
 refresh();

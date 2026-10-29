@@ -2,6 +2,14 @@
 set -Eeuo pipefail
 source "$(dirname "$0")/common.sh"
 load_config
+if enabled '.features.deployEventHubs' && enabled '.features.enableEventHubsGeoRecovery'; then
+  jq -e '
+    .eventHubs as $eh |
+    ($eh.aliasName | type == "string" and length > 0) and
+    $eh.host == ($eh.aliasName + ".servicebus.windows.net") and
+    .primary.eventHubs.host == $eh.host and .secondary.eventHubs.host == $eh.host
+  ' "$CONFIG_FILE" >/dev/null || die 'Both applications must use the Standard Geo-DR alias hostname, not a regional namespace.'
+fi
 for key in primary secondary; do
   region="$(cfg ".$key.region")"
   out="${APP_CONFIG_OUTPUT_DIR:-$ROOT_DIR/k8s/overlays}/$region"
@@ -13,7 +21,7 @@ for key in primary secondary; do
        REGION:$r.region,AZURE_CLIENT_ID:$r.identity.clientId,
        STORAGE_ACCOUNT:($c.primary.storage.name // ($c.primary.storage.primaryEndpoint|sub("^https://";"")|split(".")[0])),
        STORAGE_RESOURCE_ID:($c.primary.storage.id // ""),AZURE_SUBSCRIPTION_ID:$subscription,
-       STORAGE_READ_MODE:(if $key == "primary" then "primary" else "secondary" end),
+       STORAGE_READ_MODE:"primary",
        EH_NAMESPACE:(if $c.features.deployEventHubs then ($r.eventHubs.host // "") else "" end),
        EH_NAME:(if $c.features.deployEventHubs then "drtest-events" else "" end),
        PG_HOST:$c.postgres.writerEndpoint,
@@ -28,8 +36,14 @@ for key in primary secondary; do
        POSTGRES_DATABASE:(if $pgdb=="" then ($c.postgres.database // "postgres") else $pgdb end),POSTGRES_SSLMODE:"verify-full",
        STORAGE_PRIMARY_ENDPOINT:$c.primary.storage.primaryEndpoint,
        STORAGE_SECONDARY_ENDPOINT:$c.primary.storage.secondaryEndpoint,
-       STORAGE_READ_ENDPOINT:(if $key == "primary" then $c.primary.storage.primaryEndpoint else $c.primary.storage.secondaryEndpoint end),
-       STORAGE_CONTAINER:"sampledata",STORAGE_READ_ONLY:(if $key == "secondary" then "true" else "false" end),
+       STORAGE_READ_ENDPOINT:$c.primary.storage.primaryEndpoint,
+       STORAGE_CONTAINER:($c.sampleData.containerName // "sampledata"),STORAGE_READ_ONLY:"false",
+       SAMPLE_DATA_CONTAINER:($c.sampleData.containerName // "sampledata"),
+       SAMPLE_UPLOAD_ENABLED:(($c.sampleData.uploadEnabled != false)|tostring),
+       SAMPLE_DATA_SIZE_GB:(($c.sampleData.sizeGB // 10)|tostring),
+       SAMPLE_DATA_LARGE_FILE_SIZE_GB:(($c.sampleData.largeFileSizeGB // 1)|tostring),
+       SAMPLE_DATA_SMALL_FILE_COUNT:(($c.sampleData.smallFileCount // 2000)|tostring),
+       SAMPLE_DATA_SMALL_FILE_SIZE_MB:(($c.sampleData.smallFileSizeMB // 1)|tostring),
        EVENTHUBS_HOST:($r.eventHubs.host // ""),EVENTHUBS_ENABLED:($c.features.deployEventHubs|tostring),
        REDIS_HOST:(if $c.features.deployRedis then ($r.redis.host // "") else "" end),REDIS_TLS:"true",REDIS_ENABLED:($c.features.deployRedis|tostring),
        SEARCH_ENDPOINT:(if $c.features.deployAiSearch then ($r.search.endpoint // "") else "" end),

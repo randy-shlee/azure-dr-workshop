@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.48.1.52935",
-      "templateHash": "14707660353791697306"
+      "templateHash": "927745435752207834"
     }
   },
   "parameters": {
@@ -49,14 +49,14 @@
       "type": "bool",
       "defaultValue": false
     },
-    "enableEventHubsGeoReplication": {
+    "enableEventHubsGeoRecovery": {
       "type": "bool",
       "defaultValue": true
     },
-    "maxReplicationLagSeconds": {
+    "replicationLagAlertSeconds": {
       "type": "int",
       "defaultValue": 300,
-      "minValue": 300,
+      "minValue": 1,
       "maxValue": 86400
     },
     "fastFailover": {
@@ -98,7 +98,8 @@
     "sampleDataSizeGB": {
       "type": "int",
       "defaultValue": 10,
-      "minValue": 1
+      "minValue": 1,
+      "maxValue": 10
     },
     "largeFileSizeGB": {
       "type": "int",
@@ -123,25 +124,29 @@
       "type": "string",
       "defaultValue": "mcr.microsoft.com/azure-cli:2.85.0"
     },
+    "enableSampleUpload": {
+      "type": "bool",
+      "defaultValue": true
+    },
     "deployWorkshopBootstrap": {
       "type": "bool",
       "defaultValue": true
     },
     "bootstrapRunbookUri": {
       "type": "string",
-      "defaultValue": "https://github.com/randy-shlee/azure-dr-workshop/releases/download/v1.0.3/workshop-bootstrap.ps1"
+      "defaultValue": "https://github.com/randy-shlee/azure-dr-workshop/releases/download/v1.0.7/workshop-bootstrap.ps1"
     },
     "bootstrapRunbookSha256": {
       "type": "string",
-      "defaultValue": "79c7849cba1b1f8d115753a61329490c13b0a38ab94ada617d2ffdac4d6cb6b1"
+      "defaultValue": "dc3d086a5aeaf96f10f0f7ac7b3c916c95df6cd7ca9eb7ae7769b8f6004ca03a"
     },
     "appImageArchiveUri": {
       "type": "string",
-      "defaultValue": "https://github.com/randy-shlee/azure-dr-workshop/releases/download/v1.0.3/app-image.tar.gz"
+      "defaultValue": "https://github.com/randy-shlee/azure-dr-workshop/releases/download/v1.0.7/app-image.tar.gz"
     },
     "appImageArchiveSha256": {
       "type": "string",
-      "defaultValue": "43a03985d4b0c0ca7d64281608c739cea8918fed90df5ed08e2437da18f0639d"
+      "defaultValue": "5520be362e606eb87bbdf4c60d2b5fcc2a8bf89c4415135e45ca6c4472e4c1de"
     },
     "bootstrapRunId": {
       "type": "string",
@@ -199,11 +204,11 @@
           "deployDnsResolver": {
             "value": "[parameters('deployDnsResolver')]"
           },
-          "enableEventHubsGeoReplication": {
-            "value": "[parameters('enableEventHubsGeoReplication')]"
+          "enableEventHubsGeoRecovery": {
+            "value": "[parameters('enableEventHubsGeoRecovery')]"
           },
-          "maxReplicationLagSeconds": {
-            "value": "[parameters('maxReplicationLagSeconds')]"
+          "replicationLagAlertSeconds": {
+            "value": "[parameters('replicationLagAlertSeconds')]"
           },
           "fastFailover": {
             "value": "[parameters('fastFailover')]"
@@ -247,6 +252,9 @@
           "sampleDataImage": {
             "value": "[parameters('sampleDataImage')]"
           },
+          "enableSampleUpload": {
+            "value": "[parameters('enableSampleUpload')]"
+          },
           "deployWorkshopBootstrap": {
             "value": "[parameters('deployWorkshopBootstrap')]"
           },
@@ -273,7 +281,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.48.1.52935",
-              "templateHash": "6841670921213141719"
+              "templateHash": "16344713485956175554"
             }
           },
           "parameters": {
@@ -346,14 +354,17 @@
               "type": "bool",
               "defaultValue": false
             },
-            "enableEventHubsGeoReplication": {
+            "enableEventHubsGeoRecovery": {
               "type": "bool",
-              "defaultValue": true
+              "defaultValue": true,
+              "metadata": {
+                "description": "Standard Geo-DR replicates metadata only. Alias failover is fail-forward, not reversible data replication."
+              }
             },
-            "maxReplicationLagSeconds": {
+            "replicationLagAlertSeconds": {
               "type": "int",
               "defaultValue": 300,
-              "minValue": 300,
+              "minValue": 1,
               "maxValue": 86400
             },
             "fastFailover": {
@@ -394,8 +405,9 @@
             },
             "sampleDataSizeGB": {
               "type": "int",
-              "defaultValue": 100,
-              "minValue": 1
+              "defaultValue": 10,
+              "minValue": 1,
+              "maxValue": 10
             },
             "largeFileSizeGB": {
               "type": "int",
@@ -404,7 +416,7 @@
             },
             "smallFileCount": {
               "type": "int",
-              "defaultValue": 20000,
+              "defaultValue": 2000,
               "minValue": 0
             },
             "smallFileSizeMB": {
@@ -419,6 +431,10 @@
             "sampleDataImage": {
               "type": "string",
               "defaultValue": "mcr.microsoft.com/azure-cli:2.85.0"
+            },
+            "enableSampleUpload": {
+              "type": "bool",
+              "defaultValue": true
             },
             "deployWorkshopBootstrap": {
               "type": "bool",
@@ -604,7 +620,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.48.1.52935",
-                      "templateHash": "7654509043647876590"
+                      "templateHash": "9532679085268976312"
                     }
                   },
                   "parameters": {
@@ -655,9 +671,19 @@
                   },
                   "resources": [
                     {
+                      "type": "Microsoft.Network/networkSecurityGroups",
+                      "apiVersion": "2025-05-01",
+                      "name": "[format('vnet-{0}-{1}-snet-aks-nsg-{2}', parameters('prefix'), parameters('region'), parameters('location'))]",
+                      "location": "[parameters('location')]",
+                      "tags": "[parameters('tags')]",
+                      "properties": {
+                        "securityRules": "[if(parameters('deployAppGateway'), createArray(), createArray(createObject('name', 'Clients', 'properties', createObject('priority', 100, 'access', 'Allow', 'direction', 'Inbound', 'protocol', 'Tcp', 'sourcePortRange', '*', 'destinationPortRange', '80', 'sourceAddressPrefixes', parameters('allowedClientCidrs'), 'destinationAddressPrefix', '*')), createObject('name', 'TrafficManager', 'properties', createObject('priority', 110, 'access', 'Allow', 'direction', 'Inbound', 'protocol', 'Tcp', 'sourcePortRange', '*', 'destinationPortRange', '80', 'sourceAddressPrefix', 'AzureTrafficManager', 'destinationAddressPrefix', '*'))))]"
+                      }
+                    },
+                    {
                       "condition": "[parameters('deployAppGateway')]",
                       "type": "Microsoft.Network/networkSecurityGroups",
-                      "apiVersion": "2026-07-01",
+                      "apiVersion": "2025-05-01",
                       "name": "[format('nsg-{0}-appgw-{1}', parameters('prefix'), parameters('region'))]",
                       "location": "[parameters('location')]",
                       "tags": "[parameters('tags')]",
@@ -733,7 +759,7 @@
                     },
                     {
                       "type": "Microsoft.Network/virtualNetworks",
-                      "apiVersion": "2026-07-01",
+                      "apiVersion": "2025-05-01",
                       "name": "[format('vnet-{0}-{1}', parameters('prefix'), parameters('region'))]",
                       "location": "[parameters('location')]",
                       "tags": "[parameters('tags')]",
@@ -743,9 +769,10 @@
                             "[parameters('addressPrefix')]"
                           ]
                         },
-                        "subnets": "[concat(createArray(createObject('name', 'snet-aks', 'properties', createObject('addressPrefix', format('{0}.0.0/20', parameters('subnetPrefix')))), createObject('name', 'snet-pe', 'properties', createObject('addressPrefix', format('{0}.16.0/24', parameters('subnetPrefix')), 'privateEndpointNetworkPolicies', 'Disabled'))), if(parameters('deployAppGateway'), createArray(createObject('name', 'snet-appgw', 'properties', createObject('addressPrefix', format('{0}.17.0/24', parameters('subnetPrefix')), 'networkSecurityGroup', createObject('id', resourceId('Microsoft.Network/networkSecurityGroups', format('nsg-{0}-appgw-{1}', parameters('prefix'), parameters('region'))))))), createArray()), if(parameters('deployDnsResolver'), createArray(createObject('name', 'snet-resolver', 'properties', createObject('addressPrefix', format('{0}.18.0/28', parameters('subnetPrefix')), 'delegations', createArray(createObject('name', 'dns', 'properties', createObject('serviceName', 'Microsoft.Network/dnsResolvers')))))), createArray()))]"
+                        "subnets": "[concat(createArray(createObject('name', 'snet-aks', 'properties', createObject('addressPrefix', format('{0}.0.0/20', parameters('subnetPrefix')), 'networkSecurityGroup', createObject('id', resourceId('Microsoft.Network/networkSecurityGroups', format('vnet-{0}-{1}-snet-aks-nsg-{2}', parameters('prefix'), parameters('region'), parameters('location')))))), createObject('name', 'snet-pe', 'properties', createObject('addressPrefix', format('{0}.16.0/24', parameters('subnetPrefix')), 'privateEndpointNetworkPolicies', 'Disabled'))), if(parameters('deployAppGateway'), createArray(createObject('name', 'snet-appgw', 'properties', createObject('addressPrefix', format('{0}.17.0/24', parameters('subnetPrefix')), 'networkSecurityGroup', createObject('id', resourceId('Microsoft.Network/networkSecurityGroups', format('nsg-{0}-appgw-{1}', parameters('prefix'), parameters('region'))))))), createArray()), if(parameters('deployDnsResolver'), createArray(createObject('name', 'snet-resolver', 'properties', createObject('addressPrefix', format('{0}.18.0/28', parameters('subnetPrefix')), 'delegations', createArray(createObject('name', 'dns', 'properties', createObject('serviceName', 'Microsoft.Network/dnsResolvers')))))), createArray()))]"
                       },
                       "dependsOn": [
+                        "[resourceId('Microsoft.Network/networkSecurityGroups', format('vnet-{0}-{1}-snet-aks-nsg-{2}', parameters('prefix'), parameters('region'), parameters('location')))]",
                         "[resourceId('Microsoft.Network/networkSecurityGroups', format('nsg-{0}-appgw-{1}', parameters('prefix'), parameters('region')))]"
                       ]
                     },
@@ -783,7 +810,7 @@
                     },
                     {
                       "type": "Microsoft.Network/publicIPAddresses",
-                      "apiVersion": "2026-07-01",
+                      "apiVersion": "2025-05-01",
                       "name": "[format('pip-{0}-app-{1}', parameters('prefix'), parameters('region'))]",
                       "location": "[parameters('location')]",
                       "tags": "[parameters('tags')]",
@@ -868,8 +895,8 @@
                       "value": {
                         "id": "[resourceId('Microsoft.Network/publicIPAddresses', format('pip-{0}-app-{1}', parameters('prefix'), parameters('region')))]",
                         "name": "[format('pip-{0}-app-{1}', parameters('prefix'), parameters('region'))]",
-                        "address": "[reference(resourceId('Microsoft.Network/publicIPAddresses', format('pip-{0}-app-{1}', parameters('prefix'), parameters('region'))), '2026-07-01').ipAddress]",
-                        "fqdn": "[reference(resourceId('Microsoft.Network/publicIPAddresses', format('pip-{0}-app-{1}', parameters('prefix'), parameters('region'))), '2026-07-01').dnsSettings.fqdn]"
+                        "address": "[reference(resourceId('Microsoft.Network/publicIPAddresses', format('pip-{0}-app-{1}', parameters('prefix'), parameters('region'))), '2025-05-01').ipAddress]",
+                        "fqdn": "[reference(resourceId('Microsoft.Network/publicIPAddresses', format('pip-{0}-app-{1}', parameters('prefix'), parameters('region'))), '2025-05-01').dnsSettings.fqdn]"
                       }
                     }
                   }
@@ -925,7 +952,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.48.1.52935",
-                      "templateHash": "7654509043647876590"
+                      "templateHash": "9532679085268976312"
                     }
                   },
                   "parameters": {
@@ -976,9 +1003,19 @@
                   },
                   "resources": [
                     {
+                      "type": "Microsoft.Network/networkSecurityGroups",
+                      "apiVersion": "2025-05-01",
+                      "name": "[format('vnet-{0}-{1}-snet-aks-nsg-{2}', parameters('prefix'), parameters('region'), parameters('location'))]",
+                      "location": "[parameters('location')]",
+                      "tags": "[parameters('tags')]",
+                      "properties": {
+                        "securityRules": "[if(parameters('deployAppGateway'), createArray(), createArray(createObject('name', 'Clients', 'properties', createObject('priority', 100, 'access', 'Allow', 'direction', 'Inbound', 'protocol', 'Tcp', 'sourcePortRange', '*', 'destinationPortRange', '80', 'sourceAddressPrefixes', parameters('allowedClientCidrs'), 'destinationAddressPrefix', '*')), createObject('name', 'TrafficManager', 'properties', createObject('priority', 110, 'access', 'Allow', 'direction', 'Inbound', 'protocol', 'Tcp', 'sourcePortRange', '*', 'destinationPortRange', '80', 'sourceAddressPrefix', 'AzureTrafficManager', 'destinationAddressPrefix', '*'))))]"
+                      }
+                    },
+                    {
                       "condition": "[parameters('deployAppGateway')]",
                       "type": "Microsoft.Network/networkSecurityGroups",
-                      "apiVersion": "2026-07-01",
+                      "apiVersion": "2025-05-01",
                       "name": "[format('nsg-{0}-appgw-{1}', parameters('prefix'), parameters('region'))]",
                       "location": "[parameters('location')]",
                       "tags": "[parameters('tags')]",
@@ -1054,7 +1091,7 @@
                     },
                     {
                       "type": "Microsoft.Network/virtualNetworks",
-                      "apiVersion": "2026-07-01",
+                      "apiVersion": "2025-05-01",
                       "name": "[format('vnet-{0}-{1}', parameters('prefix'), parameters('region'))]",
                       "location": "[parameters('location')]",
                       "tags": "[parameters('tags')]",
@@ -1064,9 +1101,10 @@
                             "[parameters('addressPrefix')]"
                           ]
                         },
-                        "subnets": "[concat(createArray(createObject('name', 'snet-aks', 'properties', createObject('addressPrefix', format('{0}.0.0/20', parameters('subnetPrefix')))), createObject('name', 'snet-pe', 'properties', createObject('addressPrefix', format('{0}.16.0/24', parameters('subnetPrefix')), 'privateEndpointNetworkPolicies', 'Disabled'))), if(parameters('deployAppGateway'), createArray(createObject('name', 'snet-appgw', 'properties', createObject('addressPrefix', format('{0}.17.0/24', parameters('subnetPrefix')), 'networkSecurityGroup', createObject('id', resourceId('Microsoft.Network/networkSecurityGroups', format('nsg-{0}-appgw-{1}', parameters('prefix'), parameters('region'))))))), createArray()), if(parameters('deployDnsResolver'), createArray(createObject('name', 'snet-resolver', 'properties', createObject('addressPrefix', format('{0}.18.0/28', parameters('subnetPrefix')), 'delegations', createArray(createObject('name', 'dns', 'properties', createObject('serviceName', 'Microsoft.Network/dnsResolvers')))))), createArray()))]"
+                        "subnets": "[concat(createArray(createObject('name', 'snet-aks', 'properties', createObject('addressPrefix', format('{0}.0.0/20', parameters('subnetPrefix')), 'networkSecurityGroup', createObject('id', resourceId('Microsoft.Network/networkSecurityGroups', format('vnet-{0}-{1}-snet-aks-nsg-{2}', parameters('prefix'), parameters('region'), parameters('location')))))), createObject('name', 'snet-pe', 'properties', createObject('addressPrefix', format('{0}.16.0/24', parameters('subnetPrefix')), 'privateEndpointNetworkPolicies', 'Disabled'))), if(parameters('deployAppGateway'), createArray(createObject('name', 'snet-appgw', 'properties', createObject('addressPrefix', format('{0}.17.0/24', parameters('subnetPrefix')), 'networkSecurityGroup', createObject('id', resourceId('Microsoft.Network/networkSecurityGroups', format('nsg-{0}-appgw-{1}', parameters('prefix'), parameters('region'))))))), createArray()), if(parameters('deployDnsResolver'), createArray(createObject('name', 'snet-resolver', 'properties', createObject('addressPrefix', format('{0}.18.0/28', parameters('subnetPrefix')), 'delegations', createArray(createObject('name', 'dns', 'properties', createObject('serviceName', 'Microsoft.Network/dnsResolvers')))))), createArray()))]"
                       },
                       "dependsOn": [
+                        "[resourceId('Microsoft.Network/networkSecurityGroups', format('vnet-{0}-{1}-snet-aks-nsg-{2}', parameters('prefix'), parameters('region'), parameters('location')))]",
                         "[resourceId('Microsoft.Network/networkSecurityGroups', format('nsg-{0}-appgw-{1}', parameters('prefix'), parameters('region')))]"
                       ]
                     },
@@ -1104,7 +1142,7 @@
                     },
                     {
                       "type": "Microsoft.Network/publicIPAddresses",
-                      "apiVersion": "2026-07-01",
+                      "apiVersion": "2025-05-01",
                       "name": "[format('pip-{0}-app-{1}', parameters('prefix'), parameters('region'))]",
                       "location": "[parameters('location')]",
                       "tags": "[parameters('tags')]",
@@ -1189,8 +1227,8 @@
                       "value": {
                         "id": "[resourceId('Microsoft.Network/publicIPAddresses', format('pip-{0}-app-{1}', parameters('prefix'), parameters('region')))]",
                         "name": "[format('pip-{0}-app-{1}', parameters('prefix'), parameters('region'))]",
-                        "address": "[reference(resourceId('Microsoft.Network/publicIPAddresses', format('pip-{0}-app-{1}', parameters('prefix'), parameters('region'))), '2026-07-01').ipAddress]",
-                        "fqdn": "[reference(resourceId('Microsoft.Network/publicIPAddresses', format('pip-{0}-app-{1}', parameters('prefix'), parameters('region'))), '2026-07-01').dnsSettings.fqdn]"
+                        "address": "[reference(resourceId('Microsoft.Network/publicIPAddresses', format('pip-{0}-app-{1}', parameters('prefix'), parameters('region'))), '2025-05-01').ipAddress]",
+                        "fqdn": "[reference(resourceId('Microsoft.Network/publicIPAddresses', format('pip-{0}-app-{1}', parameters('prefix'), parameters('region'))), '2025-05-01').dnsSettings.fqdn]"
                       }
                     }
                   }
@@ -1225,7 +1263,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.48.1.52935",
-                      "templateHash": "11550631332609511377"
+                      "templateHash": "7349643039043400958"
                     }
                   },
                   "parameters": {
@@ -1239,7 +1277,7 @@
                   "resources": [
                     {
                       "type": "Microsoft.Network/virtualNetworks/virtualNetworkPeerings",
-                      "apiVersion": "2026-07-01",
+                      "apiVersion": "2025-05-01",
                       "name": "[format('{0}/{1}', parameters('localVnetName'), 'peer-other-region')]",
                       "properties": {
                         "remoteVirtualNetwork": {
@@ -1285,7 +1323,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.48.1.52935",
-                      "templateHash": "11550631332609511377"
+                      "templateHash": "7349643039043400958"
                     }
                   },
                   "parameters": {
@@ -1299,7 +1337,7 @@
                   "resources": [
                     {
                       "type": "Microsoft.Network/virtualNetworks/virtualNetworkPeerings",
-                      "apiVersion": "2026-07-01",
+                      "apiVersion": "2025-05-01",
                       "name": "[format('{0}/{1}', parameters('localVnetName'), 'peer-other-region')]",
                       "properties": {
                         "remoteVirtualNetwork": {
@@ -1625,7 +1663,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.48.1.52935",
-                      "templateHash": "8604462143790602472"
+                      "templateHash": "9303983955806140108"
                     }
                   },
                   "parameters": {
@@ -1762,8 +1800,7 @@
                             },
                             "tags": "[parameters('tags')]",
                             "upgradeSettings": {
-                              "maxSurge": "0",
-                              "maxUnavailable": "1"
+                              "maxSurge": "1"
                             }
                           }
                         ],
@@ -1907,7 +1944,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.48.1.52935",
-                      "templateHash": "8604462143790602472"
+                      "templateHash": "9303983955806140108"
                     }
                   },
                   "parameters": {
@@ -2044,8 +2081,7 @@
                             },
                             "tags": "[parameters('tags')]",
                             "upgradeSettings": {
-                              "maxSurge": "0",
-                              "maxUnavailable": "1"
+                              "maxSurge": "1"
                             }
                           }
                         ],
@@ -2126,6 +2162,64 @@
                 "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krs', parameters('prefix'))), 'Microsoft.Resources/deployments', 'identities-krs')]",
                 "[subscriptionResourceId('Microsoft.Resources/resourceGroups', format('rg-{0}-krs', parameters('prefix')))]",
                 "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krs', parameters('prefix'))), 'Microsoft.Resources/deployments', 'network-krs')]"
+              ]
+            },
+            {
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2025-04-01",
+              "name": "sampledata-secondary-federation",
+              "resourceGroup": "[format('rg-{0}-krc', parameters('prefix'))]",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "identityName": {
+                    "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'identities-krc'), '2025-04-01').outputs.sample.value.name]"
+                  },
+                  "issuer": {
+                    "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krs', parameters('prefix'))), 'Microsoft.Resources/deployments', 'aks-krs'), '2025-04-01').outputs.config.value.oidcIssuer]"
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.48.1.52935",
+                      "templateHash": "7212782928446954810"
+                    }
+                  },
+                  "parameters": {
+                    "identityName": {
+                      "type": "string"
+                    },
+                    "issuer": {
+                      "type": "string"
+                    }
+                  },
+                  "resources": [
+                    {
+                      "type": "Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials",
+                      "apiVersion": "2024-11-30",
+                      "name": "[format('{0}/{1}', parameters('identityName'), 'aks-sampledata-krs')]",
+                      "properties": {
+                        "audiences": [
+                          "api://AzureADTokenExchange"
+                        ],
+                        "issuer": "[parameters('issuer')]",
+                        "subject": "system:serviceaccount:drtest:sampledata-upload"
+                      }
+                    }
+                  ]
+                }
+              },
+              "dependsOn": [
+                "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krs', parameters('prefix'))), 'Microsoft.Resources/deployments', 'aks-krs')]",
+                "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'identities-krc')]",
+                "[subscriptionResourceId('Microsoft.Resources/resourceGroups', format('rg-{0}-krc', parameters('prefix')))]"
               ]
             },
             {
@@ -2271,7 +2365,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.48.1.52935",
-                      "templateHash": "11376985739070937877"
+                      "templateHash": "1441942522031831330"
                     }
                   },
                   "parameters": {
@@ -2309,7 +2403,7 @@
                   "resources": [
                     {
                       "type": "Microsoft.Network/privateEndpoints",
-                      "apiVersion": "2026-07-01",
+                      "apiVersion": "2025-05-01",
                       "name": "[format('pe-{0}-monitor-{1}', parameters('prefix'), parameters('region'))]",
                       "location": "[parameters('location')]",
                       "tags": "[parameters('tags')]",
@@ -2332,7 +2426,7 @@
                     },
                     {
                       "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
-                      "apiVersion": "2026-07-01",
+                      "apiVersion": "2025-05-01",
                       "name": "[format('{0}/{1}', format('pe-{0}-monitor-{1}', parameters('prefix'), parameters('region')), 'default')]",
                       "properties": {
                         "copy": [
@@ -2401,7 +2495,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.48.1.52935",
-                      "templateHash": "11376985739070937877"
+                      "templateHash": "1441942522031831330"
                     }
                   },
                   "parameters": {
@@ -2439,7 +2533,7 @@
                   "resources": [
                     {
                       "type": "Microsoft.Network/privateEndpoints",
-                      "apiVersion": "2026-07-01",
+                      "apiVersion": "2025-05-01",
                       "name": "[format('pe-{0}-monitor-{1}', parameters('prefix'), parameters('region'))]",
                       "location": "[parameters('location')]",
                       "tags": "[parameters('tags')]",
@@ -2462,7 +2556,7 @@
                     },
                     {
                       "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
-                      "apiVersion": "2026-07-01",
+                      "apiVersion": "2025-05-01",
                       "name": "[format('{0}/{1}', format('pe-{0}-monitor-{1}', parameters('prefix'), parameters('region')), 'default')]",
                       "properties": {
                         "copy": [
@@ -2537,7 +2631,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.48.1.52935",
-                      "templateHash": "16084445974310340641"
+                      "templateHash": "17247351266735865833"
                     }
                   },
                   "parameters": {
@@ -2703,7 +2797,7 @@
                             "_generator": {
                               "name": "bicep",
                               "version": "0.48.1.52935",
-                              "templateHash": "14757305232704292273"
+                              "templateHash": "6574441770424996497"
                             }
                           },
                           "parameters": {
@@ -2732,7 +2826,7 @@
                           "resources": [
                             {
                               "type": "Microsoft.Network/privateEndpoints",
-                              "apiVersion": "2026-07-01",
+                              "apiVersion": "2025-05-01",
                               "name": "[parameters('name')]",
                               "location": "[parameters('location')]",
                               "tags": "[parameters('tags')]",
@@ -2756,7 +2850,7 @@
                             },
                             {
                               "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
-                              "apiVersion": "2026-07-01",
+                              "apiVersion": "2025-05-01",
                               "name": "[format('{0}/{1}', parameters('name'), 'default')]",
                               "properties": {
                                 "privateDnsZoneConfigs": [
@@ -2771,6 +2865,48 @@
                               "dependsOn": [
                                 "[resourceId('Microsoft.Network/privateEndpoints', parameters('name'))]"
                               ]
+                            },
+                            {
+                              "type": "Microsoft.Resources/deployments",
+                              "apiVersion": "2025-04-01",
+                              "name": "[format('{0}-address', parameters('name'))]",
+                              "properties": {
+                                "expressionEvaluationOptions": {
+                                  "scope": "inner"
+                                },
+                                "mode": "Incremental",
+                                "parameters": {
+                                  "name": {
+                                    "value": "[format('{0}-nic', parameters('name'))]"
+                                  }
+                                },
+                                "template": {
+                                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                                  "contentVersion": "1.0.0.0",
+                                  "metadata": {
+                                    "_generator": {
+                                      "name": "bicep",
+                                      "version": "0.48.1.52935",
+                                      "templateHash": "15066935499581148942"
+                                    }
+                                  },
+                                  "parameters": {
+                                    "name": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "resources": [],
+                                  "outputs": {
+                                    "privateIp": {
+                                      "type": "string",
+                                      "value": "[reference(resourceId('Microsoft.Network/networkInterfaces', parameters('name')), '2025-05-01').ipConfigurations[0].properties.privateIPAddress]"
+                                    }
+                                  }
+                                }
+                              },
+                              "dependsOn": [
+                                "[resourceId('Microsoft.Network/privateEndpoints', parameters('name'))]"
+                              ]
                             }
                           ],
                           "outputs": {
@@ -2780,7 +2916,7 @@
                             },
                             "privateIp": {
                               "type": "string",
-                              "value": "[reference(resourceId('Microsoft.Network/networkInterfaces', format('{0}-nic', parameters('name'))), '2026-07-01').ipConfigurations[0].properties.privateIPAddress]"
+                              "value": "[reference(resourceId('Microsoft.Resources/deployments', format('{0}-address', parameters('name'))), '2025-04-01').outputs.privateIp.value]"
                             }
                           }
                         }
@@ -2833,7 +2969,7 @@
                             "_generator": {
                               "name": "bicep",
                               "version": "0.48.1.52935",
-                              "templateHash": "14757305232704292273"
+                              "templateHash": "6574441770424996497"
                             }
                           },
                           "parameters": {
@@ -2862,7 +2998,7 @@
                           "resources": [
                             {
                               "type": "Microsoft.Network/privateEndpoints",
-                              "apiVersion": "2026-07-01",
+                              "apiVersion": "2025-05-01",
                               "name": "[parameters('name')]",
                               "location": "[parameters('location')]",
                               "tags": "[parameters('tags')]",
@@ -2886,7 +3022,7 @@
                             },
                             {
                               "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
-                              "apiVersion": "2026-07-01",
+                              "apiVersion": "2025-05-01",
                               "name": "[format('{0}/{1}', parameters('name'), 'default')]",
                               "properties": {
                                 "privateDnsZoneConfigs": [
@@ -2901,6 +3037,48 @@
                               "dependsOn": [
                                 "[resourceId('Microsoft.Network/privateEndpoints', parameters('name'))]"
                               ]
+                            },
+                            {
+                              "type": "Microsoft.Resources/deployments",
+                              "apiVersion": "2025-04-01",
+                              "name": "[format('{0}-address', parameters('name'))]",
+                              "properties": {
+                                "expressionEvaluationOptions": {
+                                  "scope": "inner"
+                                },
+                                "mode": "Incremental",
+                                "parameters": {
+                                  "name": {
+                                    "value": "[format('{0}-nic', parameters('name'))]"
+                                  }
+                                },
+                                "template": {
+                                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                                  "contentVersion": "1.0.0.0",
+                                  "metadata": {
+                                    "_generator": {
+                                      "name": "bicep",
+                                      "version": "0.48.1.52935",
+                                      "templateHash": "15066935499581148942"
+                                    }
+                                  },
+                                  "parameters": {
+                                    "name": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "resources": [],
+                                  "outputs": {
+                                    "privateIp": {
+                                      "type": "string",
+                                      "value": "[reference(resourceId('Microsoft.Network/networkInterfaces', parameters('name')), '2025-05-01').ipConfigurations[0].properties.privateIPAddress]"
+                                    }
+                                  }
+                                }
+                              },
+                              "dependsOn": [
+                                "[resourceId('Microsoft.Network/privateEndpoints', parameters('name'))]"
+                              ]
                             }
                           ],
                           "outputs": {
@@ -2910,7 +3088,7 @@
                             },
                             "privateIp": {
                               "type": "string",
-                              "value": "[reference(resourceId('Microsoft.Network/networkInterfaces', format('{0}-nic', parameters('name'))), '2026-07-01').ipConfigurations[0].properties.privateIPAddress]"
+                              "value": "[reference(resourceId('Microsoft.Resources/deployments', format('{0}-address', parameters('name'))), '2025-04-01').outputs.privateIp.value]"
                             }
                           }
                         }
@@ -2989,6 +3167,8 @@
                       "value": {
                         "id": "[resourceId('Microsoft.Storage/storageAccounts', take(variables('name'), 24))]",
                         "name": "[take(variables('name'), 24)]",
+                        "redundancy": "Standard_RAGRS",
+                        "failoverType": "Planned",
                         "primaryEndpoint": "[reference(resourceId('Microsoft.Storage/storageAccounts', take(variables('name'), 24)), '2026-09-01').primaryEndpoints.blob]",
                         "secondaryEndpoint": "[reference(resourceId('Microsoft.Storage/storageAccounts', take(variables('name'), 24)), '2026-09-01').secondaryEndpoints.blob]",
                         "secondaryLocation": "[reference(resourceId('Microsoft.Storage/storageAccounts', take(variables('name'), 24)), '2026-09-01').secondaryLocation]"
@@ -3051,7 +3231,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.48.1.52935",
-                      "templateHash": "8026465227368306315"
+                      "templateHash": "9775854953920619856"
                     }
                   },
                   "parameters": {
@@ -3175,7 +3355,7 @@
                             "_generator": {
                               "name": "bicep",
                               "version": "0.48.1.52935",
-                              "templateHash": "14757305232704292273"
+                              "templateHash": "6574441770424996497"
                             }
                           },
                           "parameters": {
@@ -3204,7 +3384,7 @@
                           "resources": [
                             {
                               "type": "Microsoft.Network/privateEndpoints",
-                              "apiVersion": "2026-07-01",
+                              "apiVersion": "2025-05-01",
                               "name": "[parameters('name')]",
                               "location": "[parameters('location')]",
                               "tags": "[parameters('tags')]",
@@ -3228,7 +3408,7 @@
                             },
                             {
                               "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
-                              "apiVersion": "2026-07-01",
+                              "apiVersion": "2025-05-01",
                               "name": "[format('{0}/{1}', parameters('name'), 'default')]",
                               "properties": {
                                 "privateDnsZoneConfigs": [
@@ -3243,6 +3423,48 @@
                               "dependsOn": [
                                 "[resourceId('Microsoft.Network/privateEndpoints', parameters('name'))]"
                               ]
+                            },
+                            {
+                              "type": "Microsoft.Resources/deployments",
+                              "apiVersion": "2025-04-01",
+                              "name": "[format('{0}-address', parameters('name'))]",
+                              "properties": {
+                                "expressionEvaluationOptions": {
+                                  "scope": "inner"
+                                },
+                                "mode": "Incremental",
+                                "parameters": {
+                                  "name": {
+                                    "value": "[format('{0}-nic', parameters('name'))]"
+                                  }
+                                },
+                                "template": {
+                                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                                  "contentVersion": "1.0.0.0",
+                                  "metadata": {
+                                    "_generator": {
+                                      "name": "bicep",
+                                      "version": "0.48.1.52935",
+                                      "templateHash": "15066935499581148942"
+                                    }
+                                  },
+                                  "parameters": {
+                                    "name": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "resources": [],
+                                  "outputs": {
+                                    "privateIp": {
+                                      "type": "string",
+                                      "value": "[reference(resourceId('Microsoft.Network/networkInterfaces', parameters('name')), '2025-05-01').ipConfigurations[0].properties.privateIPAddress]"
+                                    }
+                                  }
+                                }
+                              },
+                              "dependsOn": [
+                                "[resourceId('Microsoft.Network/privateEndpoints', parameters('name'))]"
+                              ]
                             }
                           ],
                           "outputs": {
@@ -3252,7 +3474,7 @@
                             },
                             "privateIp": {
                               "type": "string",
-                              "value": "[reference(resourceId('Microsoft.Network/networkInterfaces', format('{0}-nic', parameters('name'))), '2026-07-01').ipConfigurations[0].properties.privateIPAddress]"
+                              "value": "[reference(resourceId('Microsoft.Resources/deployments', format('{0}-address', parameters('name'))), '2025-04-01').outputs.privateIp.value]"
                             }
                           }
                         }
@@ -3302,7 +3524,7 @@
                             "_generator": {
                               "name": "bicep",
                               "version": "0.48.1.52935",
-                              "templateHash": "14757305232704292273"
+                              "templateHash": "6574441770424996497"
                             }
                           },
                           "parameters": {
@@ -3331,7 +3553,7 @@
                           "resources": [
                             {
                               "type": "Microsoft.Network/privateEndpoints",
-                              "apiVersion": "2026-07-01",
+                              "apiVersion": "2025-05-01",
                               "name": "[parameters('name')]",
                               "location": "[parameters('location')]",
                               "tags": "[parameters('tags')]",
@@ -3355,7 +3577,7 @@
                             },
                             {
                               "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
-                              "apiVersion": "2026-07-01",
+                              "apiVersion": "2025-05-01",
                               "name": "[format('{0}/{1}', parameters('name'), 'default')]",
                               "properties": {
                                 "privateDnsZoneConfigs": [
@@ -3370,6 +3592,48 @@
                               "dependsOn": [
                                 "[resourceId('Microsoft.Network/privateEndpoints', parameters('name'))]"
                               ]
+                            },
+                            {
+                              "type": "Microsoft.Resources/deployments",
+                              "apiVersion": "2025-04-01",
+                              "name": "[format('{0}-address', parameters('name'))]",
+                              "properties": {
+                                "expressionEvaluationOptions": {
+                                  "scope": "inner"
+                                },
+                                "mode": "Incremental",
+                                "parameters": {
+                                  "name": {
+                                    "value": "[format('{0}-nic', parameters('name'))]"
+                                  }
+                                },
+                                "template": {
+                                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                                  "contentVersion": "1.0.0.0",
+                                  "metadata": {
+                                    "_generator": {
+                                      "name": "bicep",
+                                      "version": "0.48.1.52935",
+                                      "templateHash": "15066935499581148942"
+                                    }
+                                  },
+                                  "parameters": {
+                                    "name": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "resources": [],
+                                  "outputs": {
+                                    "privateIp": {
+                                      "type": "string",
+                                      "value": "[reference(resourceId('Microsoft.Network/networkInterfaces', parameters('name')), '2025-05-01').ipConfigurations[0].properties.privateIPAddress]"
+                                    }
+                                  }
+                                }
+                              },
+                              "dependsOn": [
+                                "[resourceId('Microsoft.Network/privateEndpoints', parameters('name'))]"
+                              ]
                             }
                           ],
                           "outputs": {
@@ -3379,7 +3643,7 @@
                             },
                             "privateIp": {
                               "type": "string",
-                              "value": "[reference(resourceId('Microsoft.Network/networkInterfaces', format('{0}-nic', parameters('name'))), '2026-07-01').ipConfigurations[0].properties.privateIPAddress]"
+                              "value": "[reference(resourceId('Microsoft.Resources/deployments', format('{0}-address', parameters('name'))), '2025-04-01').outputs.privateIp.value]"
                             }
                           }
                         }
@@ -3446,11 +3710,8 @@
                       "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krs', parameters('prefix'))), 'Microsoft.Resources/deployments', 'identities-krs'), '2025-04-01').outputs.app.value.principalId]"
                     ]
                   },
-                  "enableGeoReplication": {
-                    "value": "[parameters('enableEventHubsGeoReplication')]"
-                  },
-                  "maxReplicationLagSeconds": {
-                    "value": "[parameters('maxReplicationLagSeconds')]"
+                  "enableGeoRecovery": {
+                    "value": "[parameters('enableEventHubsGeoRecovery')]"
                   },
                   "workspaceId": {
                     "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'monitor-workspace'), '2025-04-01').outputs.id.value]"
@@ -3463,7 +3724,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.48.1.52935",
-                      "templateHash": "10954529971271950578"
+                      "templateHash": "10497780770381453476"
                     }
                   },
                   "parameters": {
@@ -3488,98 +3749,339 @@
                     "principalIds": {
                       "type": "array"
                     },
-                    "enableGeoReplication": {
+                    "enableGeoRecovery": {
                       "type": "bool",
                       "defaultValue": true
-                    },
-                    "maxReplicationLagSeconds": {
-                      "type": "int",
-                      "defaultValue": 300,
-                      "minValue": 300,
-                      "maxValue": 86400
                     },
                     "workspaceId": {
                       "type": "string"
                     }
                   },
+                  "variables": {
+                    "aliasName": "[format('eh-{0}-dr', parameters('prefix'))]"
+                  },
                   "resources": [
                     {
-                      "type": "Microsoft.EventHub/namespaces",
-                      "apiVersion": "2026-01-01",
-                      "name": "[format('eh-{0}-krc', parameters('prefix'))]",
-                      "location": "koreacentral",
-                      "tags": "[parameters('tags')]",
-                      "sku": {
-                        "name": "Premium",
-                        "tier": "Premium",
-                        "capacity": 1
-                      },
+                      "condition": "[parameters('enableGeoRecovery')]",
+                      "type": "Microsoft.EventHub/namespaces/disasterRecoveryConfigs",
+                      "apiVersion": "2024-01-01",
+                      "name": "[format('{0}/{1}', format('eh-{0}-krc', parameters('prefix')), variables('aliasName'))]",
                       "properties": {
-                        "publicNetworkAccess": "Disabled",
-                        "disableLocalAuth": true,
-                        "minimumTlsVersion": "1.2",
-                        "zoneRedundant": false,
-                        "isAutoInflateEnabled": false,
-                        "geoDataReplication": "[if(parameters('enableGeoReplication'), createObject('maxReplicationLagDurationInSeconds', parameters('maxReplicationLagSeconds'), 'locations', createArray(createObject('locationName', 'koreacentral', 'roleType', 'Primary'), createObject('locationName', 'koreasouth', 'roleType', 'Secondary'))), null())]"
+                        "partnerNamespace": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krs', parameters('prefix'))), 'Microsoft.Resources/deployments', 'eh-namespace-krs'), '2025-04-01').outputs.config.value.id]"
+                      },
+                      "dependsOn": [
+                        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krs', parameters('prefix'))), 'Microsoft.Resources/deployments', 'eh-krc-pe-in-krs')]",
+                        "[resourceId('Microsoft.Resources/deployments', 'eh-pe-krc')]",
+                        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krs', parameters('prefix'))), 'Microsoft.Resources/deployments', 'eh-namespace-krs')]",
+                        "[resourceId('Microsoft.Resources/deployments', 'eh-krs-pe-in-krc')]",
+                        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krs', parameters('prefix'))), 'Microsoft.Resources/deployments', 'eh-pe-krs')]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.Resources/deployments",
+                      "apiVersion": "2025-04-01",
+                      "name": "eh-namespace-krc",
+                      "properties": {
+                        "expressionEvaluationOptions": {
+                          "scope": "inner"
+                        },
+                        "mode": "Incremental",
+                        "parameters": {
+                          "name": {
+                            "value": "[format('eh-{0}-krc', parameters('prefix'))]"
+                          },
+                          "location": {
+                            "value": "koreacentral"
+                          },
+                          "tags": {
+                            "value": "[parameters('tags')]"
+                          },
+                          "principalIds": {
+                            "value": "[parameters('principalIds')]"
+                          },
+                          "workspaceId": {
+                            "value": "[parameters('workspaceId')]"
+                          },
+                          "createHub": {
+                            "value": true
+                          }
+                        },
+                        "template": {
+                          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                          "contentVersion": "1.0.0.0",
+                          "metadata": {
+                            "_generator": {
+                              "name": "bicep",
+                              "version": "0.48.1.52935",
+                              "templateHash": "6610289886124172272"
+                            }
+                          },
+                          "parameters": {
+                            "name": {
+                              "type": "string"
+                            },
+                            "location": {
+                              "type": "string"
+                            },
+                            "tags": {
+                              "type": "object"
+                            },
+                            "principalIds": {
+                              "type": "array"
+                            },
+                            "workspaceId": {
+                              "type": "string"
+                            },
+                            "createHub": {
+                              "type": "bool",
+                              "defaultValue": false
+                            }
+                          },
+                          "resources": [
+                            {
+                              "type": "Microsoft.EventHub/namespaces",
+                              "apiVersion": "2024-01-01",
+                              "name": "[parameters('name')]",
+                              "location": "[parameters('location')]",
+                              "tags": "[parameters('tags')]",
+                              "sku": {
+                                "name": "Standard",
+                                "tier": "Standard",
+                                "capacity": 1
+                              },
+                              "properties": {
+                                "publicNetworkAccess": "Disabled",
+                                "disableLocalAuth": true,
+                                "minimumTlsVersion": "1.2",
+                                "zoneRedundant": false,
+                                "isAutoInflateEnabled": false,
+                                "kafkaEnabled": false
+                              }
+                            },
+                            {
+                              "condition": "[parameters('createHub')]",
+                              "type": "Microsoft.EventHub/namespaces/eventhubs",
+                              "apiVersion": "2024-01-01",
+                              "name": "[format('{0}/{1}', parameters('name'), 'drtest-events')]",
+                              "properties": {
+                                "partitionCount": 1,
+                                "retentionDescription": {
+                                  "cleanupPolicy": "Delete",
+                                  "retentionTimeInHours": 24
+                                }
+                              },
+                              "dependsOn": [
+                                "[resourceId('Microsoft.EventHub/namespaces', parameters('name'))]"
+                              ]
+                            },
+                            {
+                              "copy": {
+                                "name": "grants",
+                                "count": "[length(parameters('principalIds'))]"
+                              },
+                              "type": "Microsoft.Authorization/roleAssignments",
+                              "apiVersion": "2022-04-01",
+                              "scope": "[resourceId('Microsoft.EventHub/namespaces', parameters('name'))]",
+                              "name": "[guid(resourceId('Microsoft.EventHub/namespaces', parameters('name')), parameters('principalIds')[copyIndex()], 'eh-owner')]",
+                              "properties": {
+                                "principalId": "[parameters('principalIds')[copyIndex()]]",
+                                "principalType": "ServicePrincipal",
+                                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'f526a384-b230-433a-b45c-95f59c4a2dec')]"
+                              },
+                              "dependsOn": [
+                                "[resourceId('Microsoft.EventHub/namespaces', parameters('name'))]"
+                              ]
+                            },
+                            {
+                              "type": "Microsoft.Insights/diagnosticSettings",
+                              "apiVersion": "2021-05-01-preview",
+                              "scope": "[resourceId('Microsoft.EventHub/namespaces', parameters('name'))]",
+                              "name": "application-metrics",
+                              "properties": {
+                                "workspaceId": "[parameters('workspaceId')]",
+                                "logAnalyticsDestinationType": "Dedicated",
+                                "logs": [
+                                  {
+                                    "category": "OperationalLogs",
+                                    "enabled": true
+                                  }
+                                ],
+                                "metrics": [
+                                  {
+                                    "category": "AllMetrics",
+                                    "enabled": true
+                                  }
+                                ]
+                              },
+                              "dependsOn": [
+                                "[resourceId('Microsoft.EventHub/namespaces', parameters('name'))]"
+                              ]
+                            }
+                          ],
+                          "outputs": {
+                            "config": {
+                              "type": "object",
+                              "value": {
+                                "id": "[resourceId('Microsoft.EventHub/namespaces', parameters('name'))]",
+                                "name": "[parameters('name')]",
+                                "host": "[format('{0}.servicebus.windows.net', parameters('name'))]"
+                              }
+                            }
+                          }
+                        }
                       }
                     },
                     {
-                      "type": "Microsoft.EventHub/namespaces/eventhubs",
-                      "apiVersion": "2026-01-01",
-                      "name": "[format('{0}/{1}', format('eh-{0}-krc', parameters('prefix')), 'drtest-events')]",
+                      "type": "Microsoft.Resources/deployments",
+                      "apiVersion": "2025-04-01",
+                      "name": "eh-namespace-krs",
+                      "resourceGroup": "[format('rg-{0}-krs', parameters('prefix'))]",
                       "properties": {
-                        "partitionCount": 1,
-                        "retentionDescription": {
-                          "cleanupPolicy": "Delete",
-                          "retentionTimeInHours": 24
+                        "expressionEvaluationOptions": {
+                          "scope": "inner"
+                        },
+                        "mode": "Incremental",
+                        "parameters": {
+                          "name": {
+                            "value": "[format('eh-{0}-krs', parameters('prefix'))]"
+                          },
+                          "location": {
+                            "value": "koreasouth"
+                          },
+                          "tags": {
+                            "value": "[parameters('tags')]"
+                          },
+                          "principalIds": {
+                            "value": "[parameters('principalIds')]"
+                          },
+                          "workspaceId": {
+                            "value": "[parameters('workspaceId')]"
+                          }
+                        },
+                        "template": {
+                          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                          "contentVersion": "1.0.0.0",
+                          "metadata": {
+                            "_generator": {
+                              "name": "bicep",
+                              "version": "0.48.1.52935",
+                              "templateHash": "6610289886124172272"
+                            }
+                          },
+                          "parameters": {
+                            "name": {
+                              "type": "string"
+                            },
+                            "location": {
+                              "type": "string"
+                            },
+                            "tags": {
+                              "type": "object"
+                            },
+                            "principalIds": {
+                              "type": "array"
+                            },
+                            "workspaceId": {
+                              "type": "string"
+                            },
+                            "createHub": {
+                              "type": "bool",
+                              "defaultValue": false
+                            }
+                          },
+                          "resources": [
+                            {
+                              "type": "Microsoft.EventHub/namespaces",
+                              "apiVersion": "2024-01-01",
+                              "name": "[parameters('name')]",
+                              "location": "[parameters('location')]",
+                              "tags": "[parameters('tags')]",
+                              "sku": {
+                                "name": "Standard",
+                                "tier": "Standard",
+                                "capacity": 1
+                              },
+                              "properties": {
+                                "publicNetworkAccess": "Disabled",
+                                "disableLocalAuth": true,
+                                "minimumTlsVersion": "1.2",
+                                "zoneRedundant": false,
+                                "isAutoInflateEnabled": false,
+                                "kafkaEnabled": false
+                              }
+                            },
+                            {
+                              "condition": "[parameters('createHub')]",
+                              "type": "Microsoft.EventHub/namespaces/eventhubs",
+                              "apiVersion": "2024-01-01",
+                              "name": "[format('{0}/{1}', parameters('name'), 'drtest-events')]",
+                              "properties": {
+                                "partitionCount": 1,
+                                "retentionDescription": {
+                                  "cleanupPolicy": "Delete",
+                                  "retentionTimeInHours": 24
+                                }
+                              },
+                              "dependsOn": [
+                                "[resourceId('Microsoft.EventHub/namespaces', parameters('name'))]"
+                              ]
+                            },
+                            {
+                              "copy": {
+                                "name": "grants",
+                                "count": "[length(parameters('principalIds'))]"
+                              },
+                              "type": "Microsoft.Authorization/roleAssignments",
+                              "apiVersion": "2022-04-01",
+                              "scope": "[resourceId('Microsoft.EventHub/namespaces', parameters('name'))]",
+                              "name": "[guid(resourceId('Microsoft.EventHub/namespaces', parameters('name')), parameters('principalIds')[copyIndex()], 'eh-owner')]",
+                              "properties": {
+                                "principalId": "[parameters('principalIds')[copyIndex()]]",
+                                "principalType": "ServicePrincipal",
+                                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'f526a384-b230-433a-b45c-95f59c4a2dec')]"
+                              },
+                              "dependsOn": [
+                                "[resourceId('Microsoft.EventHub/namespaces', parameters('name'))]"
+                              ]
+                            },
+                            {
+                              "type": "Microsoft.Insights/diagnosticSettings",
+                              "apiVersion": "2021-05-01-preview",
+                              "scope": "[resourceId('Microsoft.EventHub/namespaces', parameters('name'))]",
+                              "name": "application-metrics",
+                              "properties": {
+                                "workspaceId": "[parameters('workspaceId')]",
+                                "logAnalyticsDestinationType": "Dedicated",
+                                "logs": [
+                                  {
+                                    "category": "OperationalLogs",
+                                    "enabled": true
+                                  }
+                                ],
+                                "metrics": [
+                                  {
+                                    "category": "AllMetrics",
+                                    "enabled": true
+                                  }
+                                ]
+                              },
+                              "dependsOn": [
+                                "[resourceId('Microsoft.EventHub/namespaces', parameters('name'))]"
+                              ]
+                            }
+                          ],
+                          "outputs": {
+                            "config": {
+                              "type": "object",
+                              "value": {
+                                "id": "[resourceId('Microsoft.EventHub/namespaces', parameters('name'))]",
+                                "name": "[parameters('name')]",
+                                "host": "[format('{0}.servicebus.windows.net', parameters('name'))]"
+                              }
+                            }
+                          }
                         }
-                      },
-                      "dependsOn": [
-                        "[resourceId('Microsoft.EventHub/namespaces', format('eh-{0}-krc', parameters('prefix')))]"
-                      ]
-                    },
-                    {
-                      "copy": {
-                        "name": "grants",
-                        "count": "[length(parameters('principalIds'))]"
-                      },
-                      "type": "Microsoft.Authorization/roleAssignments",
-                      "apiVersion": "2022-04-01",
-                      "scope": "[resourceId('Microsoft.EventHub/namespaces', format('eh-{0}-krc', parameters('prefix')))]",
-                      "name": "[guid(resourceId('Microsoft.EventHub/namespaces', format('eh-{0}-krc', parameters('prefix'))), parameters('principalIds')[copyIndex()], 'eh-owner')]",
-                      "properties": {
-                        "principalId": "[parameters('principalIds')[copyIndex()]]",
-                        "principalType": "ServicePrincipal",
-                        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'f526a384-b230-433a-b45c-95f59c4a2dec')]"
-                      },
-                      "dependsOn": [
-                        "[resourceId('Microsoft.EventHub/namespaces', format('eh-{0}-krc', parameters('prefix')))]"
-                      ]
-                    },
-                    {
-                      "type": "Microsoft.Insights/diagnosticSettings",
-                      "apiVersion": "2021-05-01-preview",
-                      "scope": "[resourceId('Microsoft.EventHub/namespaces', format('eh-{0}-krc', parameters('prefix')))]",
-                      "name": "application-metrics",
-                      "properties": {
-                        "workspaceId": "[parameters('workspaceId')]",
-                        "logAnalyticsDestinationType": "Dedicated",
-                        "logs": [
-                          {
-                            "category": "ApplicationMetricsLogs",
-                            "enabled": true
-                          }
-                        ],
-                        "metrics": [
-                          {
-                            "category": "AllMetrics",
-                            "enabled": true
-                          }
-                        ]
-                      },
-                      "dependsOn": [
-                        "[resourceId('Microsoft.EventHub/namespaces', format('eh-{0}-krc', parameters('prefix')))]"
-                      ]
+                      }
                     },
                     {
                       "type": "Microsoft.Resources/deployments",
@@ -3604,7 +4106,7 @@
                             "value": "[parameters('primarySubnetId')]"
                           },
                           "targetId": {
-                            "value": "[resourceId('Microsoft.EventHub/namespaces', format('eh-{0}-krc', parameters('prefix')))]"
+                            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'eh-namespace-krc'), '2025-04-01').outputs.config.value.id]"
                           },
                           "groupId": {
                             "value": "namespace"
@@ -3620,7 +4122,7 @@
                             "_generator": {
                               "name": "bicep",
                               "version": "0.48.1.52935",
-                              "templateHash": "14757305232704292273"
+                              "templateHash": "6574441770424996497"
                             }
                           },
                           "parameters": {
@@ -3649,7 +4151,7 @@
                           "resources": [
                             {
                               "type": "Microsoft.Network/privateEndpoints",
-                              "apiVersion": "2026-07-01",
+                              "apiVersion": "2025-05-01",
                               "name": "[parameters('name')]",
                               "location": "[parameters('location')]",
                               "tags": "[parameters('tags')]",
@@ -3673,7 +4175,7 @@
                             },
                             {
                               "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
-                              "apiVersion": "2026-07-01",
+                              "apiVersion": "2025-05-01",
                               "name": "[format('{0}/{1}', parameters('name'), 'default')]",
                               "properties": {
                                 "privateDnsZoneConfigs": [
@@ -3688,6 +4190,48 @@
                               "dependsOn": [
                                 "[resourceId('Microsoft.Network/privateEndpoints', parameters('name'))]"
                               ]
+                            },
+                            {
+                              "type": "Microsoft.Resources/deployments",
+                              "apiVersion": "2025-04-01",
+                              "name": "[format('{0}-address', parameters('name'))]",
+                              "properties": {
+                                "expressionEvaluationOptions": {
+                                  "scope": "inner"
+                                },
+                                "mode": "Incremental",
+                                "parameters": {
+                                  "name": {
+                                    "value": "[format('{0}-nic', parameters('name'))]"
+                                  }
+                                },
+                                "template": {
+                                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                                  "contentVersion": "1.0.0.0",
+                                  "metadata": {
+                                    "_generator": {
+                                      "name": "bicep",
+                                      "version": "0.48.1.52935",
+                                      "templateHash": "15066935499581148942"
+                                    }
+                                  },
+                                  "parameters": {
+                                    "name": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "resources": [],
+                                  "outputs": {
+                                    "privateIp": {
+                                      "type": "string",
+                                      "value": "[reference(resourceId('Microsoft.Network/networkInterfaces', parameters('name')), '2025-05-01').ipConfigurations[0].properties.privateIPAddress]"
+                                    }
+                                  }
+                                }
+                              },
+                              "dependsOn": [
+                                "[resourceId('Microsoft.Network/privateEndpoints', parameters('name'))]"
+                              ]
                             }
                           ],
                           "outputs": {
@@ -3697,13 +4241,13 @@
                             },
                             "privateIp": {
                               "type": "string",
-                              "value": "[reference(resourceId('Microsoft.Network/networkInterfaces', format('{0}-nic', parameters('name'))), '2026-07-01').ipConfigurations[0].properties.privateIPAddress]"
+                              "value": "[reference(resourceId('Microsoft.Resources/deployments', format('{0}-address', parameters('name'))), '2025-04-01').outputs.privateIp.value]"
                             }
                           }
                         }
                       },
                       "dependsOn": [
-                        "[resourceId('Microsoft.EventHub/namespaces', format('eh-{0}-krc', parameters('prefix')))]"
+                        "[resourceId('Microsoft.Resources/deployments', 'eh-namespace-krc')]"
                       ]
                     },
                     {
@@ -3730,7 +4274,7 @@
                             "value": "[parameters('secondarySubnetId')]"
                           },
                           "targetId": {
-                            "value": "[resourceId('Microsoft.EventHub/namespaces', format('eh-{0}-krc', parameters('prefix')))]"
+                            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krs', parameters('prefix'))), 'Microsoft.Resources/deployments', 'eh-namespace-krs'), '2025-04-01').outputs.config.value.id]"
                           },
                           "groupId": {
                             "value": "namespace"
@@ -3746,7 +4290,7 @@
                             "_generator": {
                               "name": "bicep",
                               "version": "0.48.1.52935",
-                              "templateHash": "14757305232704292273"
+                              "templateHash": "6574441770424996497"
                             }
                           },
                           "parameters": {
@@ -3775,7 +4319,7 @@
                           "resources": [
                             {
                               "type": "Microsoft.Network/privateEndpoints",
-                              "apiVersion": "2026-07-01",
+                              "apiVersion": "2025-05-01",
                               "name": "[parameters('name')]",
                               "location": "[parameters('location')]",
                               "tags": "[parameters('tags')]",
@@ -3799,7 +4343,7 @@
                             },
                             {
                               "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
-                              "apiVersion": "2026-07-01",
+                              "apiVersion": "2025-05-01",
                               "name": "[format('{0}/{1}', parameters('name'), 'default')]",
                               "properties": {
                                 "privateDnsZoneConfigs": [
@@ -3814,6 +4358,48 @@
                               "dependsOn": [
                                 "[resourceId('Microsoft.Network/privateEndpoints', parameters('name'))]"
                               ]
+                            },
+                            {
+                              "type": "Microsoft.Resources/deployments",
+                              "apiVersion": "2025-04-01",
+                              "name": "[format('{0}-address', parameters('name'))]",
+                              "properties": {
+                                "expressionEvaluationOptions": {
+                                  "scope": "inner"
+                                },
+                                "mode": "Incremental",
+                                "parameters": {
+                                  "name": {
+                                    "value": "[format('{0}-nic', parameters('name'))]"
+                                  }
+                                },
+                                "template": {
+                                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                                  "contentVersion": "1.0.0.0",
+                                  "metadata": {
+                                    "_generator": {
+                                      "name": "bicep",
+                                      "version": "0.48.1.52935",
+                                      "templateHash": "15066935499581148942"
+                                    }
+                                  },
+                                  "parameters": {
+                                    "name": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "resources": [],
+                                  "outputs": {
+                                    "privateIp": {
+                                      "type": "string",
+                                      "value": "[reference(resourceId('Microsoft.Network/networkInterfaces', parameters('name')), '2025-05-01').ipConfigurations[0].properties.privateIPAddress]"
+                                    }
+                                  }
+                                }
+                              },
+                              "dependsOn": [
+                                "[resourceId('Microsoft.Network/privateEndpoints', parameters('name'))]"
+                              ]
                             }
                           ],
                           "outputs": {
@@ -3823,13 +4409,348 @@
                             },
                             "privateIp": {
                               "type": "string",
-                              "value": "[reference(resourceId('Microsoft.Network/networkInterfaces', format('{0}-nic', parameters('name'))), '2026-07-01').ipConfigurations[0].properties.privateIPAddress]"
+                              "value": "[reference(resourceId('Microsoft.Resources/deployments', format('{0}-address', parameters('name'))), '2025-04-01').outputs.privateIp.value]"
                             }
                           }
                         }
                       },
                       "dependsOn": [
-                        "[resourceId('Microsoft.EventHub/namespaces', format('eh-{0}-krc', parameters('prefix')))]"
+                        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krs', parameters('prefix'))), 'Microsoft.Resources/deployments', 'eh-namespace-krs')]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.Resources/deployments",
+                      "apiVersion": "2025-04-01",
+                      "name": "eh-krc-pe-in-krs",
+                      "resourceGroup": "[format('rg-{0}-krs', parameters('prefix'))]",
+                      "properties": {
+                        "expressionEvaluationOptions": {
+                          "scope": "inner"
+                        },
+                        "mode": "Incremental",
+                        "parameters": {
+                          "name": {
+                            "value": "[format('pe-{0}-eh-krc-in-krs', parameters('prefix'))]"
+                          },
+                          "location": {
+                            "value": "koreasouth"
+                          },
+                          "tags": {
+                            "value": "[parameters('tags')]"
+                          },
+                          "subnetId": {
+                            "value": "[parameters('secondarySubnetId')]"
+                          },
+                          "targetId": {
+                            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'eh-namespace-krc'), '2025-04-01').outputs.config.value.id]"
+                          },
+                          "groupId": {
+                            "value": "namespace"
+                          },
+                          "dnsZoneId": {
+                            "value": "[parameters('secondaryDnsZoneId')]"
+                          }
+                        },
+                        "template": {
+                          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                          "contentVersion": "1.0.0.0",
+                          "metadata": {
+                            "_generator": {
+                              "name": "bicep",
+                              "version": "0.48.1.52935",
+                              "templateHash": "6574441770424996497"
+                            }
+                          },
+                          "parameters": {
+                            "name": {
+                              "type": "string"
+                            },
+                            "location": {
+                              "type": "string"
+                            },
+                            "tags": {
+                              "type": "object"
+                            },
+                            "subnetId": {
+                              "type": "string"
+                            },
+                            "targetId": {
+                              "type": "string"
+                            },
+                            "groupId": {
+                              "type": "string"
+                            },
+                            "dnsZoneId": {
+                              "type": "string"
+                            }
+                          },
+                          "resources": [
+                            {
+                              "type": "Microsoft.Network/privateEndpoints",
+                              "apiVersion": "2025-05-01",
+                              "name": "[parameters('name')]",
+                              "location": "[parameters('location')]",
+                              "tags": "[parameters('tags')]",
+                              "properties": {
+                                "customNetworkInterfaceName": "[format('{0}-nic', parameters('name'))]",
+                                "subnet": {
+                                  "id": "[parameters('subnetId')]"
+                                },
+                                "privateLinkServiceConnections": [
+                                  {
+                                    "name": "[parameters('groupId')]",
+                                    "properties": {
+                                      "privateLinkServiceId": "[parameters('targetId')]",
+                                      "groupIds": [
+                                        "[parameters('groupId')]"
+                                      ]
+                                    }
+                                  }
+                                ]
+                              }
+                            },
+                            {
+                              "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
+                              "apiVersion": "2025-05-01",
+                              "name": "[format('{0}/{1}', parameters('name'), 'default')]",
+                              "properties": {
+                                "privateDnsZoneConfigs": [
+                                  {
+                                    "name": "service",
+                                    "properties": {
+                                      "privateDnsZoneId": "[parameters('dnsZoneId')]"
+                                    }
+                                  }
+                                ]
+                              },
+                              "dependsOn": [
+                                "[resourceId('Microsoft.Network/privateEndpoints', parameters('name'))]"
+                              ]
+                            },
+                            {
+                              "type": "Microsoft.Resources/deployments",
+                              "apiVersion": "2025-04-01",
+                              "name": "[format('{0}-address', parameters('name'))]",
+                              "properties": {
+                                "expressionEvaluationOptions": {
+                                  "scope": "inner"
+                                },
+                                "mode": "Incremental",
+                                "parameters": {
+                                  "name": {
+                                    "value": "[format('{0}-nic', parameters('name'))]"
+                                  }
+                                },
+                                "template": {
+                                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                                  "contentVersion": "1.0.0.0",
+                                  "metadata": {
+                                    "_generator": {
+                                      "name": "bicep",
+                                      "version": "0.48.1.52935",
+                                      "templateHash": "15066935499581148942"
+                                    }
+                                  },
+                                  "parameters": {
+                                    "name": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "resources": [],
+                                  "outputs": {
+                                    "privateIp": {
+                                      "type": "string",
+                                      "value": "[reference(resourceId('Microsoft.Network/networkInterfaces', parameters('name')), '2025-05-01').ipConfigurations[0].properties.privateIPAddress]"
+                                    }
+                                  }
+                                }
+                              },
+                              "dependsOn": [
+                                "[resourceId('Microsoft.Network/privateEndpoints', parameters('name'))]"
+                              ]
+                            }
+                          ],
+                          "outputs": {
+                            "id": {
+                              "type": "string",
+                              "value": "[resourceId('Microsoft.Network/privateEndpoints', parameters('name'))]"
+                            },
+                            "privateIp": {
+                              "type": "string",
+                              "value": "[reference(resourceId('Microsoft.Resources/deployments', format('{0}-address', parameters('name'))), '2025-04-01').outputs.privateIp.value]"
+                            }
+                          }
+                        }
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.Resources/deployments', 'eh-namespace-krc')]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.Resources/deployments",
+                      "apiVersion": "2025-04-01",
+                      "name": "eh-krs-pe-in-krc",
+                      "properties": {
+                        "expressionEvaluationOptions": {
+                          "scope": "inner"
+                        },
+                        "mode": "Incremental",
+                        "parameters": {
+                          "name": {
+                            "value": "[format('pe-{0}-eh-krs-in-krc', parameters('prefix'))]"
+                          },
+                          "location": {
+                            "value": "koreacentral"
+                          },
+                          "tags": {
+                            "value": "[parameters('tags')]"
+                          },
+                          "subnetId": {
+                            "value": "[parameters('primarySubnetId')]"
+                          },
+                          "targetId": {
+                            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krs', parameters('prefix'))), 'Microsoft.Resources/deployments', 'eh-namespace-krs'), '2025-04-01').outputs.config.value.id]"
+                          },
+                          "groupId": {
+                            "value": "namespace"
+                          },
+                          "dnsZoneId": {
+                            "value": "[parameters('primaryDnsZoneId')]"
+                          }
+                        },
+                        "template": {
+                          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                          "contentVersion": "1.0.0.0",
+                          "metadata": {
+                            "_generator": {
+                              "name": "bicep",
+                              "version": "0.48.1.52935",
+                              "templateHash": "6574441770424996497"
+                            }
+                          },
+                          "parameters": {
+                            "name": {
+                              "type": "string"
+                            },
+                            "location": {
+                              "type": "string"
+                            },
+                            "tags": {
+                              "type": "object"
+                            },
+                            "subnetId": {
+                              "type": "string"
+                            },
+                            "targetId": {
+                              "type": "string"
+                            },
+                            "groupId": {
+                              "type": "string"
+                            },
+                            "dnsZoneId": {
+                              "type": "string"
+                            }
+                          },
+                          "resources": [
+                            {
+                              "type": "Microsoft.Network/privateEndpoints",
+                              "apiVersion": "2025-05-01",
+                              "name": "[parameters('name')]",
+                              "location": "[parameters('location')]",
+                              "tags": "[parameters('tags')]",
+                              "properties": {
+                                "customNetworkInterfaceName": "[format('{0}-nic', parameters('name'))]",
+                                "subnet": {
+                                  "id": "[parameters('subnetId')]"
+                                },
+                                "privateLinkServiceConnections": [
+                                  {
+                                    "name": "[parameters('groupId')]",
+                                    "properties": {
+                                      "privateLinkServiceId": "[parameters('targetId')]",
+                                      "groupIds": [
+                                        "[parameters('groupId')]"
+                                      ]
+                                    }
+                                  }
+                                ]
+                              }
+                            },
+                            {
+                              "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
+                              "apiVersion": "2025-05-01",
+                              "name": "[format('{0}/{1}', parameters('name'), 'default')]",
+                              "properties": {
+                                "privateDnsZoneConfigs": [
+                                  {
+                                    "name": "service",
+                                    "properties": {
+                                      "privateDnsZoneId": "[parameters('dnsZoneId')]"
+                                    }
+                                  }
+                                ]
+                              },
+                              "dependsOn": [
+                                "[resourceId('Microsoft.Network/privateEndpoints', parameters('name'))]"
+                              ]
+                            },
+                            {
+                              "type": "Microsoft.Resources/deployments",
+                              "apiVersion": "2025-04-01",
+                              "name": "[format('{0}-address', parameters('name'))]",
+                              "properties": {
+                                "expressionEvaluationOptions": {
+                                  "scope": "inner"
+                                },
+                                "mode": "Incremental",
+                                "parameters": {
+                                  "name": {
+                                    "value": "[format('{0}-nic', parameters('name'))]"
+                                  }
+                                },
+                                "template": {
+                                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                                  "contentVersion": "1.0.0.0",
+                                  "metadata": {
+                                    "_generator": {
+                                      "name": "bicep",
+                                      "version": "0.48.1.52935",
+                                      "templateHash": "15066935499581148942"
+                                    }
+                                  },
+                                  "parameters": {
+                                    "name": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "resources": [],
+                                  "outputs": {
+                                    "privateIp": {
+                                      "type": "string",
+                                      "value": "[reference(resourceId('Microsoft.Network/networkInterfaces', parameters('name')), '2025-05-01').ipConfigurations[0].properties.privateIPAddress]"
+                                    }
+                                  }
+                                }
+                              },
+                              "dependsOn": [
+                                "[resourceId('Microsoft.Network/privateEndpoints', parameters('name'))]"
+                              ]
+                            }
+                          ],
+                          "outputs": {
+                            "id": {
+                              "type": "string",
+                              "value": "[resourceId('Microsoft.Network/privateEndpoints', parameters('name'))]"
+                            },
+                            "privateIp": {
+                              "type": "string",
+                              "value": "[reference(resourceId('Microsoft.Resources/deployments', format('{0}-address', parameters('name'))), '2025-04-01').outputs.privateIp.value]"
+                            }
+                          }
+                        }
+                      },
+                      "dependsOn": [
+                        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krs', parameters('prefix'))), 'Microsoft.Resources/deployments', 'eh-namespace-krs')]"
                       ]
                     }
                   ],
@@ -3837,10 +4758,12 @@
                     "config": {
                       "type": "object",
                       "value": {
-                        "id": "[resourceId('Microsoft.EventHub/namespaces', format('eh-{0}-krc', parameters('prefix')))]",
-                        "name": "[format('eh-{0}-krc', parameters('prefix'))]",
-                        "host": "[format('{0}.servicebus.windows.net', format('eh-{0}-krc', parameters('prefix')))]",
-                        "maxReplicationLagSeconds": "[parameters('maxReplicationLagSeconds')]"
+                        "aliasName": "[if(parameters('enableGeoRecovery'), variables('aliasName'), '')]",
+                        "host": "[if(parameters('enableGeoRecovery'), format('{0}.servicebus.windows.net', variables('aliasName')), reference(resourceId('Microsoft.Resources/deployments', 'eh-namespace-krc'), '2025-04-01').outputs.config.value.host)]",
+                        "recoveryMode": "[if(parameters('enableGeoRecovery'), 'MetadataOnlyGeoRecovery', 'Unpaired')]",
+                        "dataReplicated": false,
+                        "primary": "[union(reference(resourceId('Microsoft.Resources/deployments', 'eh-namespace-krc'), '2025-04-01').outputs.config.value, createObject('host', if(parameters('enableGeoRecovery'), format('{0}.servicebus.windows.net', variables('aliasName')), reference(resourceId('Microsoft.Resources/deployments', 'eh-namespace-krc'), '2025-04-01').outputs.config.value.host)))]",
+                        "secondary": "[union(reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krs', parameters('prefix'))), 'Microsoft.Resources/deployments', 'eh-namespace-krs'), '2025-04-01').outputs.config.value, createObject('host', if(parameters('enableGeoRecovery'), format('{0}.servicebus.windows.net', variables('aliasName')), reference(resourceId('Microsoft.Resources/deployments', 'eh-namespace-krc'), '2025-04-01').outputs.config.value.host)))]"
                       }
                     }
                   }
@@ -3904,7 +4827,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.48.1.52935",
-                      "templateHash": "18068321938855084305"
+                      "templateHash": "11896922742015690213"
                     }
                   },
                   "parameters": {
@@ -4000,7 +4923,7 @@
                             "_generator": {
                               "name": "bicep",
                               "version": "0.48.1.52935",
-                              "templateHash": "9888705372086381815"
+                              "templateHash": "7341615487969744953"
                             }
                           },
                           "parameters": {
@@ -4130,7 +5053,7 @@
                                     "_generator": {
                                       "name": "bicep",
                                       "version": "0.48.1.52935",
-                                      "templateHash": "14757305232704292273"
+                                      "templateHash": "6574441770424996497"
                                     }
                                   },
                                   "parameters": {
@@ -4159,7 +5082,7 @@
                                   "resources": [
                                     {
                                       "type": "Microsoft.Network/privateEndpoints",
-                                      "apiVersion": "2026-07-01",
+                                      "apiVersion": "2025-05-01",
                                       "name": "[parameters('name')]",
                                       "location": "[parameters('location')]",
                                       "tags": "[parameters('tags')]",
@@ -4183,7 +5106,7 @@
                                     },
                                     {
                                       "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
-                                      "apiVersion": "2026-07-01",
+                                      "apiVersion": "2025-05-01",
                                       "name": "[format('{0}/{1}', parameters('name'), 'default')]",
                                       "properties": {
                                         "privateDnsZoneConfigs": [
@@ -4198,6 +5121,48 @@
                                       "dependsOn": [
                                         "[resourceId('Microsoft.Network/privateEndpoints', parameters('name'))]"
                                       ]
+                                    },
+                                    {
+                                      "type": "Microsoft.Resources/deployments",
+                                      "apiVersion": "2025-04-01",
+                                      "name": "[format('{0}-address', parameters('name'))]",
+                                      "properties": {
+                                        "expressionEvaluationOptions": {
+                                          "scope": "inner"
+                                        },
+                                        "mode": "Incremental",
+                                        "parameters": {
+                                          "name": {
+                                            "value": "[format('{0}-nic', parameters('name'))]"
+                                          }
+                                        },
+                                        "template": {
+                                          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                                          "contentVersion": "1.0.0.0",
+                                          "metadata": {
+                                            "_generator": {
+                                              "name": "bicep",
+                                              "version": "0.48.1.52935",
+                                              "templateHash": "15066935499581148942"
+                                            }
+                                          },
+                                          "parameters": {
+                                            "name": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "resources": [],
+                                          "outputs": {
+                                            "privateIp": {
+                                              "type": "string",
+                                              "value": "[reference(resourceId('Microsoft.Network/networkInterfaces', parameters('name')), '2025-05-01').ipConfigurations[0].properties.privateIPAddress]"
+                                            }
+                                          }
+                                        }
+                                      },
+                                      "dependsOn": [
+                                        "[resourceId('Microsoft.Network/privateEndpoints', parameters('name'))]"
+                                      ]
                                     }
                                   ],
                                   "outputs": {
@@ -4207,7 +5172,7 @@
                                     },
                                     "privateIp": {
                                       "type": "string",
-                                      "value": "[reference(resourceId('Microsoft.Network/networkInterfaces', format('{0}-nic', parameters('name'))), '2026-07-01').ipConfigurations[0].properties.privateIPAddress]"
+                                      "value": "[reference(resourceId('Microsoft.Resources/deployments', format('{0}-address', parameters('name'))), '2025-04-01').outputs.privateIp.value]"
                                     }
                                   }
                                 }
@@ -4277,7 +5242,7 @@
                             "_generator": {
                               "name": "bicep",
                               "version": "0.48.1.52935",
-                              "templateHash": "9888705372086381815"
+                              "templateHash": "7341615487969744953"
                             }
                           },
                           "parameters": {
@@ -4407,7 +5372,7 @@
                                     "_generator": {
                                       "name": "bicep",
                                       "version": "0.48.1.52935",
-                                      "templateHash": "14757305232704292273"
+                                      "templateHash": "6574441770424996497"
                                     }
                                   },
                                   "parameters": {
@@ -4436,7 +5401,7 @@
                                   "resources": [
                                     {
                                       "type": "Microsoft.Network/privateEndpoints",
-                                      "apiVersion": "2026-07-01",
+                                      "apiVersion": "2025-05-01",
                                       "name": "[parameters('name')]",
                                       "location": "[parameters('location')]",
                                       "tags": "[parameters('tags')]",
@@ -4460,7 +5425,7 @@
                                     },
                                     {
                                       "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
-                                      "apiVersion": "2026-07-01",
+                                      "apiVersion": "2025-05-01",
                                       "name": "[format('{0}/{1}', parameters('name'), 'default')]",
                                       "properties": {
                                         "privateDnsZoneConfigs": [
@@ -4475,6 +5440,48 @@
                                       "dependsOn": [
                                         "[resourceId('Microsoft.Network/privateEndpoints', parameters('name'))]"
                                       ]
+                                    },
+                                    {
+                                      "type": "Microsoft.Resources/deployments",
+                                      "apiVersion": "2025-04-01",
+                                      "name": "[format('{0}-address', parameters('name'))]",
+                                      "properties": {
+                                        "expressionEvaluationOptions": {
+                                          "scope": "inner"
+                                        },
+                                        "mode": "Incremental",
+                                        "parameters": {
+                                          "name": {
+                                            "value": "[format('{0}-nic', parameters('name'))]"
+                                          }
+                                        },
+                                        "template": {
+                                          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                                          "contentVersion": "1.0.0.0",
+                                          "metadata": {
+                                            "_generator": {
+                                              "name": "bicep",
+                                              "version": "0.48.1.52935",
+                                              "templateHash": "15066935499581148942"
+                                            }
+                                          },
+                                          "parameters": {
+                                            "name": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "resources": [],
+                                          "outputs": {
+                                            "privateIp": {
+                                              "type": "string",
+                                              "value": "[reference(resourceId('Microsoft.Network/networkInterfaces', parameters('name')), '2025-05-01').ipConfigurations[0].properties.privateIPAddress]"
+                                            }
+                                          }
+                                        }
+                                      },
+                                      "dependsOn": [
+                                        "[resourceId('Microsoft.Network/privateEndpoints', parameters('name'))]"
+                                      ]
                                     }
                                   ],
                                   "outputs": {
@@ -4484,7 +5491,7 @@
                                     },
                                     "privateIp": {
                                       "type": "string",
-                                      "value": "[reference(resourceId('Microsoft.Network/networkInterfaces', format('{0}-nic', parameters('name'))), '2026-07-01').ipConfigurations[0].properties.privateIPAddress]"
+                                      "value": "[reference(resourceId('Microsoft.Resources/deployments', format('{0}-address', parameters('name'))), '2025-04-01').outputs.privateIp.value]"
                                     }
                                   }
                                 }
@@ -4699,7 +5706,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.48.1.52935",
-                      "templateHash": "16745378214628537138"
+                      "templateHash": "2129934821955740193"
                     }
                   },
                   "parameters": {
@@ -4759,7 +5766,7 @@
                             "_generator": {
                               "name": "bicep",
                               "version": "0.48.1.52935",
-                              "templateHash": "15078362379696853075"
+                              "templateHash": "11411402663917546151"
                             }
                           },
                           "parameters": {
@@ -4810,6 +5817,7 @@
                               "apiVersion": "2026-09-01",
                               "name": "[format('{0}/{1}', parameters('name'), 'default')]",
                               "properties": {
+                                "accessKeysAuthentication": "Enabled",
                                 "clientProtocol": "Encrypted",
                                 "port": 10000,
                                 "clusteringPolicy": "OSSCluster",
@@ -4866,7 +5874,7 @@
                                     "_generator": {
                                       "name": "bicep",
                                       "version": "0.48.1.52935",
-                                      "templateHash": "14757305232704292273"
+                                      "templateHash": "6574441770424996497"
                                     }
                                   },
                                   "parameters": {
@@ -4895,7 +5903,7 @@
                                   "resources": [
                                     {
                                       "type": "Microsoft.Network/privateEndpoints",
-                                      "apiVersion": "2026-07-01",
+                                      "apiVersion": "2025-05-01",
                                       "name": "[parameters('name')]",
                                       "location": "[parameters('location')]",
                                       "tags": "[parameters('tags')]",
@@ -4919,7 +5927,7 @@
                                     },
                                     {
                                       "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
-                                      "apiVersion": "2026-07-01",
+                                      "apiVersion": "2025-05-01",
                                       "name": "[format('{0}/{1}', parameters('name'), 'default')]",
                                       "properties": {
                                         "privateDnsZoneConfigs": [
@@ -4934,6 +5942,48 @@
                                       "dependsOn": [
                                         "[resourceId('Microsoft.Network/privateEndpoints', parameters('name'))]"
                                       ]
+                                    },
+                                    {
+                                      "type": "Microsoft.Resources/deployments",
+                                      "apiVersion": "2025-04-01",
+                                      "name": "[format('{0}-address', parameters('name'))]",
+                                      "properties": {
+                                        "expressionEvaluationOptions": {
+                                          "scope": "inner"
+                                        },
+                                        "mode": "Incremental",
+                                        "parameters": {
+                                          "name": {
+                                            "value": "[format('{0}-nic', parameters('name'))]"
+                                          }
+                                        },
+                                        "template": {
+                                          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                                          "contentVersion": "1.0.0.0",
+                                          "metadata": {
+                                            "_generator": {
+                                              "name": "bicep",
+                                              "version": "0.48.1.52935",
+                                              "templateHash": "15066935499581148942"
+                                            }
+                                          },
+                                          "parameters": {
+                                            "name": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "resources": [],
+                                          "outputs": {
+                                            "privateIp": {
+                                              "type": "string",
+                                              "value": "[reference(resourceId('Microsoft.Network/networkInterfaces', parameters('name')), '2025-05-01').ipConfigurations[0].properties.privateIPAddress]"
+                                            }
+                                          }
+                                        }
+                                      },
+                                      "dependsOn": [
+                                        "[resourceId('Microsoft.Network/privateEndpoints', parameters('name'))]"
+                                      ]
                                     }
                                   ],
                                   "outputs": {
@@ -4943,7 +5993,7 @@
                                     },
                                     "privateIp": {
                                       "type": "string",
-                                      "value": "[reference(resourceId('Microsoft.Network/networkInterfaces', format('{0}-nic', parameters('name'))), '2026-07-01').ipConfigurations[0].properties.privateIPAddress]"
+                                      "value": "[reference(resourceId('Microsoft.Resources/deployments', format('{0}-address', parameters('name'))), '2025-04-01').outputs.privateIp.value]"
                                     }
                                   }
                                 }
@@ -5011,7 +6061,7 @@
                             "_generator": {
                               "name": "bicep",
                               "version": "0.48.1.52935",
-                              "templateHash": "15078362379696853075"
+                              "templateHash": "11411402663917546151"
                             }
                           },
                           "parameters": {
@@ -5062,6 +6112,7 @@
                               "apiVersion": "2026-09-01",
                               "name": "[format('{0}/{1}', parameters('name'), 'default')]",
                               "properties": {
+                                "accessKeysAuthentication": "Enabled",
                                 "clientProtocol": "Encrypted",
                                 "port": 10000,
                                 "clusteringPolicy": "OSSCluster",
@@ -5118,7 +6169,7 @@
                                     "_generator": {
                                       "name": "bicep",
                                       "version": "0.48.1.52935",
-                                      "templateHash": "14757305232704292273"
+                                      "templateHash": "6574441770424996497"
                                     }
                                   },
                                   "parameters": {
@@ -5147,7 +6198,7 @@
                                   "resources": [
                                     {
                                       "type": "Microsoft.Network/privateEndpoints",
-                                      "apiVersion": "2026-07-01",
+                                      "apiVersion": "2025-05-01",
                                       "name": "[parameters('name')]",
                                       "location": "[parameters('location')]",
                                       "tags": "[parameters('tags')]",
@@ -5171,7 +6222,7 @@
                                     },
                                     {
                                       "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
-                                      "apiVersion": "2026-07-01",
+                                      "apiVersion": "2025-05-01",
                                       "name": "[format('{0}/{1}', parameters('name'), 'default')]",
                                       "properties": {
                                         "privateDnsZoneConfigs": [
@@ -5186,6 +6237,48 @@
                                       "dependsOn": [
                                         "[resourceId('Microsoft.Network/privateEndpoints', parameters('name'))]"
                                       ]
+                                    },
+                                    {
+                                      "type": "Microsoft.Resources/deployments",
+                                      "apiVersion": "2025-04-01",
+                                      "name": "[format('{0}-address', parameters('name'))]",
+                                      "properties": {
+                                        "expressionEvaluationOptions": {
+                                          "scope": "inner"
+                                        },
+                                        "mode": "Incremental",
+                                        "parameters": {
+                                          "name": {
+                                            "value": "[format('{0}-nic', parameters('name'))]"
+                                          }
+                                        },
+                                        "template": {
+                                          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                                          "contentVersion": "1.0.0.0",
+                                          "metadata": {
+                                            "_generator": {
+                                              "name": "bicep",
+                                              "version": "0.48.1.52935",
+                                              "templateHash": "15066935499581148942"
+                                            }
+                                          },
+                                          "parameters": {
+                                            "name": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "resources": [],
+                                          "outputs": {
+                                            "privateIp": {
+                                              "type": "string",
+                                              "value": "[reference(resourceId('Microsoft.Network/networkInterfaces', parameters('name')), '2025-05-01').ipConfigurations[0].properties.privateIPAddress]"
+                                            }
+                                          }
+                                        }
+                                      },
+                                      "dependsOn": [
+                                        "[resourceId('Microsoft.Network/privateEndpoints', parameters('name'))]"
+                                      ]
                                     }
                                   ],
                                   "outputs": {
@@ -5195,7 +6288,7 @@
                                     },
                                     "privateIp": {
                                       "type": "string",
-                                      "value": "[reference(resourceId('Microsoft.Network/networkInterfaces', format('{0}-nic', parameters('name'))), '2026-07-01').ipConfigurations[0].properties.privateIPAddress]"
+                                      "value": "[reference(resourceId('Microsoft.Resources/deployments', format('{0}-address', parameters('name'))), '2025-04-01').outputs.privateIp.value]"
                                     }
                                   }
                                 }
@@ -5288,7 +6381,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.48.1.52935",
-                      "templateHash": "6522199115272646947"
+                      "templateHash": "16591493472460515500"
                     }
                   },
                   "parameters": {
@@ -5351,7 +6444,7 @@
                             "_generator": {
                               "name": "bicep",
                               "version": "0.48.1.52935",
-                              "templateHash": "3278601577495820224"
+                              "templateHash": "1125802638775551901"
                             }
                           },
                           "parameters": {
@@ -5393,11 +6486,6 @@
                                 "hostingMode": "Default",
                                 "publicNetworkAccess": "disabled",
                                 "disableLocalAuth": true,
-                                "authOptions": {
-                                  "aadOrApiKey": {
-                                    "aadAuthFailureMode": "http401WithBearerChallenge"
-                                  }
-                                },
                                 "semanticSearch": "disabled"
                               }
                             },
@@ -5458,7 +6546,7 @@
                                     "_generator": {
                                       "name": "bicep",
                                       "version": "0.48.1.52935",
-                                      "templateHash": "14757305232704292273"
+                                      "templateHash": "6574441770424996497"
                                     }
                                   },
                                   "parameters": {
@@ -5487,7 +6575,7 @@
                                   "resources": [
                                     {
                                       "type": "Microsoft.Network/privateEndpoints",
-                                      "apiVersion": "2026-07-01",
+                                      "apiVersion": "2025-05-01",
                                       "name": "[parameters('name')]",
                                       "location": "[parameters('location')]",
                                       "tags": "[parameters('tags')]",
@@ -5511,7 +6599,7 @@
                                     },
                                     {
                                       "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
-                                      "apiVersion": "2026-07-01",
+                                      "apiVersion": "2025-05-01",
                                       "name": "[format('{0}/{1}', parameters('name'), 'default')]",
                                       "properties": {
                                         "privateDnsZoneConfigs": [
@@ -5526,6 +6614,48 @@
                                       "dependsOn": [
                                         "[resourceId('Microsoft.Network/privateEndpoints', parameters('name'))]"
                                       ]
+                                    },
+                                    {
+                                      "type": "Microsoft.Resources/deployments",
+                                      "apiVersion": "2025-04-01",
+                                      "name": "[format('{0}-address', parameters('name'))]",
+                                      "properties": {
+                                        "expressionEvaluationOptions": {
+                                          "scope": "inner"
+                                        },
+                                        "mode": "Incremental",
+                                        "parameters": {
+                                          "name": {
+                                            "value": "[format('{0}-nic', parameters('name'))]"
+                                          }
+                                        },
+                                        "template": {
+                                          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                                          "contentVersion": "1.0.0.0",
+                                          "metadata": {
+                                            "_generator": {
+                                              "name": "bicep",
+                                              "version": "0.48.1.52935",
+                                              "templateHash": "15066935499581148942"
+                                            }
+                                          },
+                                          "parameters": {
+                                            "name": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "resources": [],
+                                          "outputs": {
+                                            "privateIp": {
+                                              "type": "string",
+                                              "value": "[reference(resourceId('Microsoft.Network/networkInterfaces', parameters('name')), '2025-05-01').ipConfigurations[0].properties.privateIPAddress]"
+                                            }
+                                          }
+                                        }
+                                      },
+                                      "dependsOn": [
+                                        "[resourceId('Microsoft.Network/privateEndpoints', parameters('name'))]"
+                                      ]
                                     }
                                   ],
                                   "outputs": {
@@ -5535,7 +6665,7 @@
                                     },
                                     "privateIp": {
                                       "type": "string",
-                                      "value": "[reference(resourceId('Microsoft.Network/networkInterfaces', format('{0}-nic', parameters('name'))), '2026-07-01').ipConfigurations[0].properties.privateIPAddress]"
+                                      "value": "[reference(resourceId('Microsoft.Resources/deployments', format('{0}-address', parameters('name'))), '2025-04-01').outputs.privateIp.value]"
                                     }
                                   }
                                 }
@@ -5595,7 +6725,7 @@
                             "_generator": {
                               "name": "bicep",
                               "version": "0.48.1.52935",
-                              "templateHash": "3278601577495820224"
+                              "templateHash": "1125802638775551901"
                             }
                           },
                           "parameters": {
@@ -5637,11 +6767,6 @@
                                 "hostingMode": "Default",
                                 "publicNetworkAccess": "disabled",
                                 "disableLocalAuth": true,
-                                "authOptions": {
-                                  "aadOrApiKey": {
-                                    "aadAuthFailureMode": "http401WithBearerChallenge"
-                                  }
-                                },
                                 "semanticSearch": "disabled"
                               }
                             },
@@ -5702,7 +6827,7 @@
                                     "_generator": {
                                       "name": "bicep",
                                       "version": "0.48.1.52935",
-                                      "templateHash": "14757305232704292273"
+                                      "templateHash": "6574441770424996497"
                                     }
                                   },
                                   "parameters": {
@@ -5731,7 +6856,7 @@
                                   "resources": [
                                     {
                                       "type": "Microsoft.Network/privateEndpoints",
-                                      "apiVersion": "2026-07-01",
+                                      "apiVersion": "2025-05-01",
                                       "name": "[parameters('name')]",
                                       "location": "[parameters('location')]",
                                       "tags": "[parameters('tags')]",
@@ -5755,7 +6880,7 @@
                                     },
                                     {
                                       "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
-                                      "apiVersion": "2026-07-01",
+                                      "apiVersion": "2025-05-01",
                                       "name": "[format('{0}/{1}', parameters('name'), 'default')]",
                                       "properties": {
                                         "privateDnsZoneConfigs": [
@@ -5770,6 +6895,48 @@
                                       "dependsOn": [
                                         "[resourceId('Microsoft.Network/privateEndpoints', parameters('name'))]"
                                       ]
+                                    },
+                                    {
+                                      "type": "Microsoft.Resources/deployments",
+                                      "apiVersion": "2025-04-01",
+                                      "name": "[format('{0}-address', parameters('name'))]",
+                                      "properties": {
+                                        "expressionEvaluationOptions": {
+                                          "scope": "inner"
+                                        },
+                                        "mode": "Incremental",
+                                        "parameters": {
+                                          "name": {
+                                            "value": "[format('{0}-nic', parameters('name'))]"
+                                          }
+                                        },
+                                        "template": {
+                                          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                                          "contentVersion": "1.0.0.0",
+                                          "metadata": {
+                                            "_generator": {
+                                              "name": "bicep",
+                                              "version": "0.48.1.52935",
+                                              "templateHash": "15066935499581148942"
+                                            }
+                                          },
+                                          "parameters": {
+                                            "name": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "resources": [],
+                                          "outputs": {
+                                            "privateIp": {
+                                              "type": "string",
+                                              "value": "[reference(resourceId('Microsoft.Network/networkInterfaces', parameters('name')), '2025-05-01').ipConfigurations[0].properties.privateIPAddress]"
+                                            }
+                                          }
+                                        }
+                                      },
+                                      "dependsOn": [
+                                        "[resourceId('Microsoft.Network/privateEndpoints', parameters('name'))]"
+                                      ]
                                     }
                                   ],
                                   "outputs": {
@@ -5779,7 +6946,7 @@
                                     },
                                     "privateIp": {
                                       "type": "string",
-                                      "value": "[reference(resourceId('Microsoft.Network/networkInterfaces', format('{0}-nic', parameters('name'))), '2026-07-01').ipConfigurations[0].properties.privateIPAddress]"
+                                      "value": "[reference(resourceId('Microsoft.Resources/deployments', format('{0}-address', parameters('name'))), '2025-04-01').outputs.privateIp.value]"
                                     }
                                   }
                                 }
@@ -5866,7 +7033,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.48.1.52935",
-                      "templateHash": "11133970578506527538"
+                      "templateHash": "9515389368391517433"
                     }
                   },
                   "parameters": {
@@ -5902,7 +7069,7 @@
                   "resources": [
                     {
                       "type": "Microsoft.Network/publicIPAddresses",
-                      "apiVersion": "2026-07-01",
+                      "apiVersion": "2025-05-01",
                       "name": "[format('pip-{0}-appgw-{1}', parameters('prefix'), parameters('region'))]",
                       "location": "[parameters('location')]",
                       "tags": "[parameters('tags')]",
@@ -5919,7 +7086,7 @@
                     },
                     {
                       "type": "Microsoft.Network/ApplicationGatewayWebApplicationFirewallPolicies",
-                      "apiVersion": "2026-07-01",
+                      "apiVersion": "2025-05-01",
                       "name": "[format('waf-{0}-{1}', parameters('prefix'), parameters('region'))]",
                       "location": "[parameters('location')]",
                       "tags": "[parameters('tags')]",
@@ -5979,7 +7146,7 @@
                     },
                     {
                       "type": "Microsoft.Network/applicationGateways",
-                      "apiVersion": "2026-07-01",
+                      "apiVersion": "2025-05-01",
                       "name": "[variables('gatewayName')]",
                       "location": "[parameters('location')]",
                       "tags": "[parameters('tags')]",
@@ -6110,8 +7277,8 @@
                       "value": {
                         "id": "[resourceId('Microsoft.Network/applicationGateways', variables('gatewayName'))]",
                         "name": "[variables('gatewayName')]",
-                        "address": "[reference(resourceId('Microsoft.Network/publicIPAddresses', format('pip-{0}-appgw-{1}', parameters('prefix'), parameters('region'))), '2026-07-01').ipAddress]",
-                        "fqdn": "[reference(resourceId('Microsoft.Network/publicIPAddresses', format('pip-{0}-appgw-{1}', parameters('prefix'), parameters('region'))), '2026-07-01').dnsSettings.fqdn]",
+                        "address": "[reference(resourceId('Microsoft.Network/publicIPAddresses', format('pip-{0}-appgw-{1}', parameters('prefix'), parameters('region'))), '2025-05-01').ipAddress]",
+                        "fqdn": "[reference(resourceId('Microsoft.Network/publicIPAddresses', format('pip-{0}-appgw-{1}', parameters('prefix'), parameters('region'))), '2025-05-01').dnsSettings.fqdn]",
                         "publicIpId": "[resourceId('Microsoft.Network/publicIPAddresses', format('pip-{0}-appgw-{1}', parameters('prefix'), parameters('region')))]",
                         "backendAddress": "[parameters('backendAddress')]",
                         "backendSourceCidr": "[parameters('aksSubnetPrefix')]"
@@ -6169,7 +7336,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.48.1.52935",
-                      "templateHash": "11133970578506527538"
+                      "templateHash": "9515389368391517433"
                     }
                   },
                   "parameters": {
@@ -6205,7 +7372,7 @@
                   "resources": [
                     {
                       "type": "Microsoft.Network/publicIPAddresses",
-                      "apiVersion": "2026-07-01",
+                      "apiVersion": "2025-05-01",
                       "name": "[format('pip-{0}-appgw-{1}', parameters('prefix'), parameters('region'))]",
                       "location": "[parameters('location')]",
                       "tags": "[parameters('tags')]",
@@ -6222,7 +7389,7 @@
                     },
                     {
                       "type": "Microsoft.Network/ApplicationGatewayWebApplicationFirewallPolicies",
-                      "apiVersion": "2026-07-01",
+                      "apiVersion": "2025-05-01",
                       "name": "[format('waf-{0}-{1}', parameters('prefix'), parameters('region'))]",
                       "location": "[parameters('location')]",
                       "tags": "[parameters('tags')]",
@@ -6282,7 +7449,7 @@
                     },
                     {
                       "type": "Microsoft.Network/applicationGateways",
-                      "apiVersion": "2026-07-01",
+                      "apiVersion": "2025-05-01",
                       "name": "[variables('gatewayName')]",
                       "location": "[parameters('location')]",
                       "tags": "[parameters('tags')]",
@@ -6413,8 +7580,8 @@
                       "value": {
                         "id": "[resourceId('Microsoft.Network/applicationGateways', variables('gatewayName'))]",
                         "name": "[variables('gatewayName')]",
-                        "address": "[reference(resourceId('Microsoft.Network/publicIPAddresses', format('pip-{0}-appgw-{1}', parameters('prefix'), parameters('region'))), '2026-07-01').ipAddress]",
-                        "fqdn": "[reference(resourceId('Microsoft.Network/publicIPAddresses', format('pip-{0}-appgw-{1}', parameters('prefix'), parameters('region'))), '2026-07-01').dnsSettings.fqdn]",
+                        "address": "[reference(resourceId('Microsoft.Network/publicIPAddresses', format('pip-{0}-appgw-{1}', parameters('prefix'), parameters('region'))), '2025-05-01').ipAddress]",
+                        "fqdn": "[reference(resourceId('Microsoft.Network/publicIPAddresses', format('pip-{0}-appgw-{1}', parameters('prefix'), parameters('region'))), '2025-05-01').dnsSettings.fqdn]",
                         "publicIpId": "[resourceId('Microsoft.Network/publicIPAddresses', format('pip-{0}-appgw-{1}', parameters('prefix'), parameters('region')))]",
                         "backendAddress": "[parameters('backendAddress')]",
                         "backendSourceCidr": "[parameters('aksSubnetPrefix')]"
@@ -6598,7 +7765,7 @@
                       "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'postgres'), '2025-04-01').outputs.config.value.secondary.id]"
                     ]
                   },
-                  "eventHubsId": "[if(and(parameters('deployEventHubs'), parameters('enableEventHubsGeoReplication')), createObject('value', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'eventhubs'), '2025-04-01').outputs.config.value.id), createObject('value', ''))]",
+                  "eventHubsIds": "[if(parameters('deployEventHubs'), createObject('value', createArray(reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'eventhubs'), '2025-04-01').outputs.config.value.primary.id, reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'eventhubs'), '2025-04-01').outputs.config.value.secondary.id)), createObject('value', createArray()))]",
                   "redisIds": "[if(parameters('deployRedis'), createObject('value', createArray(reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'redis'), '2025-04-01').outputs.config.value.primary.id, reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'redis'), '2025-04-01').outputs.config.value.secondary.id)), createObject('value', createArray()))]",
                   "storageId": {
                     "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'storage'), '2025-04-01').outputs.config.value.id]"
@@ -6610,7 +7777,7 @@
                     "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'monitor-workspace'), '2025-04-01').outputs.id.value]"
                   },
                   "replicationLagSeconds": {
-                    "value": "[parameters('maxReplicationLagSeconds')]"
+                    "value": "[parameters('replicationLagAlertSeconds')]"
                   },
                   "enableStorageLastSyncCustomMetricAlert": {
                     "value": "[parameters('enableStorageLastSyncCustomMetricAlert')]"
@@ -6623,7 +7790,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.48.1.52935",
-                      "templateHash": "3504922513933414698"
+                      "templateHash": "9537028730263433355"
                     }
                   },
                   "parameters": {
@@ -6639,9 +7806,9 @@
                     "postgresIds": {
                       "type": "array"
                     },
-                    "eventHubsId": {
-                      "type": "string",
-                      "defaultValue": ""
+                    "eventHubsIds": {
+                      "type": "array",
+                      "defaultValue": []
                     },
                     "redisIds": {
                       "type": "array",
@@ -6876,10 +8043,13 @@
                       ]
                     },
                     {
-                      "condition": "[not(empty(parameters('eventHubsId')))]",
+                      "copy": {
+                        "name": "eh",
+                        "count": "[length(parameters('eventHubsIds'))]"
+                      },
                       "type": "Microsoft.Resources/deployments",
                       "apiVersion": "2025-04-01",
-                      "name": "eh-alert",
+                      "name": "[format('eh-alert-{0}', copyIndex())]",
                       "properties": {
                         "expressionEvaluationOptions": {
                           "scope": "inner"
@@ -6887,13 +8057,13 @@
                         "mode": "Incremental",
                         "parameters": {
                           "name": {
-                            "value": "[format('{0}-eh-lag', parameters('prefix'))]"
+                            "value": "[format('{0}-eh-server-errors-{1}', parameters('prefix'), copyIndex())]"
                           },
                           "tags": {
                             "value": "[parameters('tags')]"
                           },
                           "resourceId": {
-                            "value": "[parameters('eventHubsId')]"
+                            "value": "[parameters('eventHubsIds')[copyIndex()]]"
                           },
                           "actionGroupId": {
                             "value": "[resourceId('Microsoft.Insights/actionGroups', format('ag-{0}-owner', parameters('prefix')))]"
@@ -6902,13 +8072,16 @@
                             "value": "Microsoft.EventHub/namespaces"
                           },
                           "metricName": {
-                            "value": "ReplicationLagDuration"
+                            "value": "ServerErrors"
                           },
                           "threshold": {
-                            "value": "[parameters('replicationLagSeconds')]"
+                            "value": 0
+                          },
+                          "aggregation": {
+                            "value": "Total"
                           },
                           "description": {
-                            "value": "Event Hubs asynchronous geo-replication lag in seconds."
+                            "value": "Standard namespace server errors. Geo-DR replicates metadata only; no event-data replication lag exists."
                           }
                         },
                         "template": {
@@ -7612,7 +8785,7 @@
                   },
                   "config": {
                     "value": {
-                      "schemaVersion": 1,
+                      "schemaVersion": 2,
                       "prefix": "[parameters('prefix')]",
                       "primaryResourceGroup": "[format('rg-{0}-krc', parameters('prefix'))]",
                       "secondaryResourceGroup": "[format('rg-{0}-krs', parameters('prefix'))]",
@@ -7633,7 +8806,7 @@
                         "appGateway": "[if(parameters('deployAppGateway'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'appgw-krc'), '2025-04-01').outputs.config.value, createObject())]",
                         "storage": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'storage'), '2025-04-01').outputs.config.value]",
                         "acr": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'acr'), '2025-04-01').outputs.config.value]",
-                        "eventHubs": "[if(parameters('deployEventHubs'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'eventhubs'), '2025-04-01').outputs.config.value, createObject())]",
+                        "eventHubs": "[if(parameters('deployEventHubs'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'eventhubs'), '2025-04-01').outputs.config.value.primary, createObject())]",
                         "pg": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'postgres'), '2025-04-01').outputs.config.value.primary]",
                         "redis": "[if(parameters('deployRedis'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'redis'), '2025-04-01').outputs.config.value.primary, createObject())]",
                         "search": "[if(parameters('deployAiSearch'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'search'), '2025-04-01').outputs.config.value.primary, createObject())]"
@@ -7647,12 +8820,13 @@
                         "appGateway": "[if(parameters('deployAppGateway'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krs', parameters('prefix'))), 'Microsoft.Resources/deployments', 'appgw-krs'), '2025-04-01').outputs.config.value, createObject())]",
                         "storage": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'storage'), '2025-04-01').outputs.config.value]",
                         "acr": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'acr'), '2025-04-01').outputs.config.value]",
-                        "eventHubs": "[if(parameters('deployEventHubs'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'eventhubs'), '2025-04-01').outputs.config.value, createObject())]",
+                        "eventHubs": "[if(parameters('deployEventHubs'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'eventhubs'), '2025-04-01').outputs.config.value.secondary, createObject())]",
                         "pg": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'postgres'), '2025-04-01').outputs.config.value.secondary]",
                         "redis": "[if(parameters('deployRedis'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'redis'), '2025-04-01').outputs.config.value.secondary, createObject())]",
                         "search": "[if(parameters('deployAiSearch'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'search'), '2025-04-01').outputs.config.value.secondary, createObject())]"
                       },
                       "postgres": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'postgres'), '2025-04-01').outputs.config.value]",
+                      "eventHubs": "[if(parameters('deployEventHubs'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'eventhubs'), '2025-04-01').outputs.config.value, createObject())]",
                       "trafficManager": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-global', parameters('prefix'))), 'Microsoft.Resources/deployments', 'traffic-manager'), '2025-04-01').outputs.config.value]",
                       "sampleData": {
                         "clientId": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'identities-krc'), '2025-04-01').outputs.sample.value.clientId]",
@@ -7662,11 +8836,14 @@
                         "smallFileCount": "[parameters('smallFileCount')]",
                         "smallFileSizeMB": "[parameters('smallFileSizeMB')]",
                         "skip": "[parameters('skipSampleData')]",
-                        "image": "[parameters('sampleDataImage')]"
+                        "image": "[parameters('sampleDataImage')]",
+                        "maxBytes": 10000000000,
+                        "containerName": "sampledata",
+                        "uploadEnabled": "[parameters('enableSampleUpload')]"
                       },
                       "features": {
                         "deployEventHubs": "[parameters('deployEventHubs')]",
-                        "enableEventHubsGeoReplication": "[parameters('enableEventHubsGeoReplication')]",
+                        "enableEventHubsGeoRecovery": "[and(parameters('deployEventHubs'), parameters('enableEventHubsGeoRecovery'))]",
                         "deployRedis": "[parameters('deployRedis')]",
                         "deployAiSearch": "[parameters('deployAiSearch')]",
                         "enableAcrGeoReplication": "[parameters('enableAcrGeoReplication')]",
@@ -8226,7 +9403,7 @@
           "outputs": {
             "config": {
               "type": "object",
-              "value": "[union(createObject('schemaVersion', 1, 'prefix', parameters('prefix'), 'primaryResourceGroup', format('rg-{0}-krc', parameters('prefix')), 'secondaryResourceGroup', format('rg-{0}-krs', parameters('prefix')), 'globalResourceGroup', format('rg-{0}-global', parameters('prefix')), 'allowedClientCidrs', parameters('allowedClientCidrs'), 'aksVmSize', parameters('aksVmSize'), 'aksNodeCount', parameters('aksNodeCount'), 'postgresVmSize', parameters('postgresVmSize'), 'budget', if(parameters('deployBudget'), parameters('monthlyBudget'), 0), 'budgetName', if(parameters('deployBudget'), format('{0}-drtest-budget', parameters('prefix')), ''), 'workspaceId', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'monitor-workspace'), '2025-04-01').outputs.id.value, 'primary', createObject('region', 'krc', 'location', variables('primaryLocation'), 'aks', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'aks-krc'), '2025-04-01').outputs.config.value, 'identity', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'identities-krc'), '2025-04-01').outputs.app.value, 'publicIp', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'network-krc'), '2025-04-01').outputs.publicIp.value, 'appGateway', if(parameters('deployAppGateway'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'appgw-krc'), '2025-04-01').outputs.config.value, createObject()), 'storage', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'storage'), '2025-04-01').outputs.config.value, 'acr', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'acr'), '2025-04-01').outputs.config.value, 'eventHubs', if(parameters('deployEventHubs'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'eventhubs'), '2025-04-01').outputs.config.value, createObject()), 'pg', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'postgres'), '2025-04-01').outputs.config.value.primary, 'redis', if(parameters('deployRedis'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'redis'), '2025-04-01').outputs.config.value.primary, createObject()), 'search', if(parameters('deployAiSearch'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'search'), '2025-04-01').outputs.config.value.primary, createObject())), 'secondary', createObject('region', 'krs', 'location', variables('secondaryLocation'), 'aks', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krs', parameters('prefix'))), 'Microsoft.Resources/deployments', 'aks-krs'), '2025-04-01').outputs.config.value, 'identity', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krs', parameters('prefix'))), 'Microsoft.Resources/deployments', 'identities-krs'), '2025-04-01').outputs.app.value, 'publicIp', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krs', parameters('prefix'))), 'Microsoft.Resources/deployments', 'network-krs'), '2025-04-01').outputs.publicIp.value, 'appGateway', if(parameters('deployAppGateway'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krs', parameters('prefix'))), 'Microsoft.Resources/deployments', 'appgw-krs'), '2025-04-01').outputs.config.value, createObject()), 'storage', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'storage'), '2025-04-01').outputs.config.value, 'acr', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'acr'), '2025-04-01').outputs.config.value, 'eventHubs', if(parameters('deployEventHubs'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'eventhubs'), '2025-04-01').outputs.config.value, createObject()), 'pg', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'postgres'), '2025-04-01').outputs.config.value.secondary, 'redis', if(parameters('deployRedis'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'redis'), '2025-04-01').outputs.config.value.secondary, createObject()), 'search', if(parameters('deployAiSearch'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'search'), '2025-04-01').outputs.config.value.secondary, createObject())), 'postgres', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'postgres'), '2025-04-01').outputs.config.value, 'trafficManager', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-global', parameters('prefix'))), 'Microsoft.Resources/deployments', 'traffic-manager'), '2025-04-01').outputs.config.value, 'sampleData', createObject('clientId', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'identities-krc'), '2025-04-01').outputs.sample.value.clientId, 'principalId', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'identities-krc'), '2025-04-01').outputs.sample.value.principalId, 'sizeGB', parameters('sampleDataSizeGB'), 'largeFileSizeGB', parameters('largeFileSizeGB'), 'smallFileCount', parameters('smallFileCount'), 'smallFileSizeMB', parameters('smallFileSizeMB'), 'skip', parameters('skipSampleData'), 'image', parameters('sampleDataImage')), 'features', createObject('deployEventHubs', parameters('deployEventHubs'), 'enableEventHubsGeoReplication', parameters('enableEventHubsGeoReplication'), 'deployRedis', parameters('deployRedis'), 'deployAiSearch', parameters('deployAiSearch'), 'enableAcrGeoReplication', parameters('enableAcrGeoReplication'), 'deployAppGateway', parameters('deployAppGateway'), 'deployDnsResolver', parameters('deployDnsResolver'), 'deployAlerts', parameters('deployAlerts'), 'enableStorageLastSyncCustomMetricAlert', parameters('enableStorageLastSyncCustomMetricAlert'), 'useEphemeralOsDisk', parameters('useEphemeralOsDisk'))), createObject('bootstrap', if(parameters('deployWorkshopBootstrap'), createObject('accountName', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-global', parameters('prefix'))), 'Microsoft.Resources/deployments', 'workshop-bootstrap'), '2025-04-01').outputs.accountName.value, 'jobId', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-global', parameters('prefix'))), 'Microsoft.Resources/deployments', 'workshop-start'), '2025-04-01').outputs.jobId.value, 'operatorRoleId', subscriptionResourceId('Microsoft.Authorization/roleDefinitions', guid(subscription().id, parameters('prefix'), 'workshop-bootstrap')), 'applicationStatus', 'Pending: verify Automation job Completed and Kubernetes workshop-bootstrap-status', 'sampleDataStatus', 'Pending: verify Kubernetes workshop-bootstrap Job Complete separately'), createObject())))]"
+              "value": "[union(createObject('schemaVersion', 2, 'prefix', parameters('prefix'), 'primaryResourceGroup', format('rg-{0}-krc', parameters('prefix')), 'secondaryResourceGroup', format('rg-{0}-krs', parameters('prefix')), 'globalResourceGroup', format('rg-{0}-global', parameters('prefix')), 'allowedClientCidrs', parameters('allowedClientCidrs'), 'aksVmSize', parameters('aksVmSize'), 'aksNodeCount', parameters('aksNodeCount'), 'postgresVmSize', parameters('postgresVmSize'), 'budget', if(parameters('deployBudget'), parameters('monthlyBudget'), 0), 'budgetName', if(parameters('deployBudget'), format('{0}-drtest-budget', parameters('prefix')), ''), 'workspaceId', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'monitor-workspace'), '2025-04-01').outputs.id.value, 'primary', createObject('region', 'krc', 'location', variables('primaryLocation'), 'aks', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'aks-krc'), '2025-04-01').outputs.config.value, 'identity', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'identities-krc'), '2025-04-01').outputs.app.value, 'publicIp', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'network-krc'), '2025-04-01').outputs.publicIp.value, 'appGateway', if(parameters('deployAppGateway'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'appgw-krc'), '2025-04-01').outputs.config.value, createObject()), 'storage', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'storage'), '2025-04-01').outputs.config.value, 'acr', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'acr'), '2025-04-01').outputs.config.value, 'eventHubs', if(parameters('deployEventHubs'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'eventhubs'), '2025-04-01').outputs.config.value.primary, createObject()), 'pg', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'postgres'), '2025-04-01').outputs.config.value.primary, 'redis', if(parameters('deployRedis'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'redis'), '2025-04-01').outputs.config.value.primary, createObject()), 'search', if(parameters('deployAiSearch'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'search'), '2025-04-01').outputs.config.value.primary, createObject())), 'secondary', createObject('region', 'krs', 'location', variables('secondaryLocation'), 'aks', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krs', parameters('prefix'))), 'Microsoft.Resources/deployments', 'aks-krs'), '2025-04-01').outputs.config.value, 'identity', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krs', parameters('prefix'))), 'Microsoft.Resources/deployments', 'identities-krs'), '2025-04-01').outputs.app.value, 'publicIp', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krs', parameters('prefix'))), 'Microsoft.Resources/deployments', 'network-krs'), '2025-04-01').outputs.publicIp.value, 'appGateway', if(parameters('deployAppGateway'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krs', parameters('prefix'))), 'Microsoft.Resources/deployments', 'appgw-krs'), '2025-04-01').outputs.config.value, createObject()), 'storage', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'storage'), '2025-04-01').outputs.config.value, 'acr', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'acr'), '2025-04-01').outputs.config.value, 'eventHubs', if(parameters('deployEventHubs'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'eventhubs'), '2025-04-01').outputs.config.value.secondary, createObject()), 'pg', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'postgres'), '2025-04-01').outputs.config.value.secondary, 'redis', if(parameters('deployRedis'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'redis'), '2025-04-01').outputs.config.value.secondary, createObject()), 'search', if(parameters('deployAiSearch'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'search'), '2025-04-01').outputs.config.value.secondary, createObject())), 'postgres', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'postgres'), '2025-04-01').outputs.config.value, 'eventHubs', if(parameters('deployEventHubs'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'eventhubs'), '2025-04-01').outputs.config.value, createObject()), 'trafficManager', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-global', parameters('prefix'))), 'Microsoft.Resources/deployments', 'traffic-manager'), '2025-04-01').outputs.config.value, 'sampleData', createObject('clientId', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'identities-krc'), '2025-04-01').outputs.sample.value.clientId, 'principalId', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-krc', parameters('prefix'))), 'Microsoft.Resources/deployments', 'identities-krc'), '2025-04-01').outputs.sample.value.principalId, 'sizeGB', parameters('sampleDataSizeGB'), 'largeFileSizeGB', parameters('largeFileSizeGB'), 'smallFileCount', parameters('smallFileCount'), 'smallFileSizeMB', parameters('smallFileSizeMB'), 'skip', parameters('skipSampleData'), 'image', parameters('sampleDataImage'), 'maxBytes', json('10000000000'), 'containerName', 'sampledata', 'uploadEnabled', parameters('enableSampleUpload')), 'features', createObject('deployEventHubs', parameters('deployEventHubs'), 'enableEventHubsGeoRecovery', and(parameters('deployEventHubs'), parameters('enableEventHubsGeoRecovery')), 'deployRedis', parameters('deployRedis'), 'deployAiSearch', parameters('deployAiSearch'), 'enableAcrGeoReplication', parameters('enableAcrGeoReplication'), 'deployAppGateway', parameters('deployAppGateway'), 'deployDnsResolver', parameters('deployDnsResolver'), 'deployAlerts', parameters('deployAlerts'), 'enableStorageLastSyncCustomMetricAlert', parameters('enableStorageLastSyncCustomMetricAlert'), 'useEphemeralOsDisk', parameters('useEphemeralOsDisk'))), createObject('bootstrap', if(parameters('deployWorkshopBootstrap'), createObject('accountName', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-global', parameters('prefix'))), 'Microsoft.Resources/deployments', 'workshop-bootstrap'), '2025-04-01').outputs.accountName.value, 'jobId', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('rg-{0}-global', parameters('prefix'))), 'Microsoft.Resources/deployments', 'workshop-start'), '2025-04-01').outputs.jobId.value, 'operatorRoleId', subscriptionResourceId('Microsoft.Authorization/roleDefinitions', guid(subscription().id, parameters('prefix'), 'workshop-bootstrap')), 'applicationStatus', 'Pending: verify Automation job Completed and Kubernetes workshop-bootstrap-status', 'sampleDataStatus', 'Pending: verify Kubernetes workshop-bootstrap Job Complete separately'), createObject())))]"
             }
           }
         }

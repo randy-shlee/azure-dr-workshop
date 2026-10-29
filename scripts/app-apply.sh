@@ -23,7 +23,7 @@ for key in primary secondary; do
     '{apiVersion:"v1",kind:"Secret",metadata:{name:"drtest-app-secrets",namespace:"drtest"},
       type:"Opaque",stringData:{PG_PASSWORD:env.PG_PASSWORD,REDIS_KEY:env.REDIS_KEY}}' >"$stage/app-secrets.json"
   aks_run "$key" 'kubectl create namespace drtest --dry-run=client -o yaml | kubectl apply -f -; kubectl apply -f app-secrets.json; kubectl apply -f app.yaml' \
-    --file "$stage/app.yaml" "$stage/app-secrets.json"
+    --file "$stage/app.yaml" --file "$stage/app-secrets.json"
   start=$SECONDS
   while true; do
     deployment="$(aks_run "$key" 'kubectl -n drtest get deployment drtest-app -o json')"
