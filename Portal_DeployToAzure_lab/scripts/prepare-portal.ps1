@@ -35,6 +35,7 @@ $destination = Join-Path $lab "releases/$ReleaseTag"
 if (Test-Path -LiteralPath $destination) { throw 'Destination exists. Use a new portal tag; never overwrite a release.' }
 $null = Get-Command bicep -ErrorAction Stop
 $null = New-Item -ItemType Directory -Path $destination
+[IO.File]::WriteAllText((Join-Path $destination '.gitattributes'), "workshop-bootstrap.ps1 -text`n", [Text.UTF8Encoding]::new($false))
 Copy-Item -LiteralPath (Join-Path $source 'workshop-bootstrap.ps1') -Destination (Join-Path $destination 'workshop-bootstrap.ps1')
 $templatePath = Join-Path $destination 'azuredeploy.json'
 & bicep build (Join-Path $root 'infra/workshop.bicep') --no-restore --outfile $templatePath

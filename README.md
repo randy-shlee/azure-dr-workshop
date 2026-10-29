@@ -19,7 +19,7 @@ Korea Central(KRC)·Korea South(KRS) 간 리소스와 앱을 배포하고, 데�
 기존 로컬 배포 경로도 유지합니다.
 
 **현재 포털 버튼은 실환경 검증용 후보입니다.** 보안 수정과 최소 런타임을 포함한 v1.0.11 이미지·번들을
-재빌드하고 v1.0.11-portal.3 템플릿에 SHA256을 고정했습니다. [검증 후보 상태](Portal_DeployToAzure_lab/releases/v1.0.11-portal.3/README.md)에 따라
+재빌드하고 v1.0.11-portal.4 템플릿에 SHA256을 고정했습니다. [검증 후보 상태](Portal_DeployToAzure_lab/releases/v1.0.11-portal.4/README.md)에 따라
 실제 배포와 DR 검증이 필요합니다. 과거 로컬 v1.0.7의 결과를 현재 소스나 포털 경로의 성공으로 해석하지 않습니다.
 2026-10-29 앱 이미지 감사에서 알려진 OS·Python 패키지 취약점이 없었습니다. 감사 범위와 한계는
 [보안 안내](SECURITY.md)를 따릅니다. 취약점 항목 164개가 발견된 이전 v1.0.10 이미지는 계속 게시를 보류합니다.

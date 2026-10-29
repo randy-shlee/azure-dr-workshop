@@ -32,6 +32,7 @@ $expectedRunbookUri = "https://raw.githubusercontent.com/$($manifest.repository)
 Assert-Portal ($manifest.runbookUri -ceq $expectedRunbookUri) 'Automation requires the immutable raw runbook URL, not a redirected Release asset.'
 $publishedRunbookPath = Join-Path $folder 'workshop-bootstrap.ps1'
 Assert-Portal (Test-Path -LiteralPath $publishedRunbookPath) 'The tag-pinned raw runbook must be included in the release folder.'
+Assert-Portal ((Get-Content -Raw -LiteralPath (Join-Path $folder '.gitattributes')).Trim() -ceq 'workshop-bootstrap.ps1 -text') 'Git must preserve packaged runbook bytes without newline conversion.'
 Assert-Portal ((Get-FileHash $publishedRunbookPath -Algorithm SHA256).Hash -ieq $manifest.runbookSha256) 'Raw runbook bytes must match the pinned asset SHA256.'
 foreach ($pair in @(@('appImageArchiveUri', 'imageUri'), @('appImageArchiveSha256', 'imageSha256'),
         @('bootstrapRunbookUri', 'runbookUri'), @('bootstrapRunbookSha256', 'runbookSha256'))) {
