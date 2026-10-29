@@ -44,7 +44,9 @@ def shell(command, environment=None):
     env.update(environment or {})
     if "MOCK_CALLS" in env:
         # Git Bash prepends its own binaries to the inherited Windows PATH.
-        command = 'export PATH="$PWD/scripts/tests/.run/bin:$PATH"\n' + command
+        command = ('export PATH="$PWD/scripts/tests/.run/bin:$PATH"\n'
+                   'curl() { "$PWD/scripts/tests/.run/bin/curl" "$@"; }\n'
+                   'export -f curl\n' + command)
     return subprocess.run([BASH, "-c", command], cwd=ROOT, env=env, stdin=subprocess.DEVNULL, text=True, capture_output=True)
 
 
@@ -428,6 +430,17 @@ case "$*" in
       ip=203.0.113.10; [[ "$*" != *"krs-aks"* ]] || ip=203.0.113.20
       jq -nc --arg ip "$ip" '{exitCode:0,logs:({status:{loadBalancer:{ingress:[{ip:$ip}]}}}|tojson)}'
     elif [[ "$*" == *"kubectl apply -f app-secrets.json"* ]]; then
+            if [[ "${MOCK_VALIDATE_SECRETS:-false}" == true ]]; then
+                secret=''
+                for ((argument_index=0; argument_index<${#arguments[@]}; argument_index++)); do
+                    if [[ "${arguments[argument_index]}" == --file && "${arguments[argument_index+1]}" == *app-secrets.json ]]; then
+                        secret="${arguments[argument_index+1]}"
+                    fi
+                done
+                expected_redis=workshop-krc; [[ "$*" != *krs-aks* ]] || expected_redis=workshop-krs
+                jq -e --arg redis "$expected_redis" '.kind=="Secret" and .metadata.namespace=="drtest" and
+                    .stringData.PG_PASSWORD=="workshop-pg" and .stringData.REDIS_KEY==$redis' "$secret" >/dev/null
+            fi
       printf '%s\\n' "$*" >>"$MOCK_CALLS"
       echo '{"exitCode":0,"logs":"applied"}'
     elif [[ "$*" == *"exec deployment/drtest-app"* ]]; then
@@ -564,46 +577,23 @@ printf '%s\\n' 'Name: test.trafficmanager.net' 'Address: 203.0.113.10'
         self.assertNotEqual(proc.returncode, 0)
         self.assertIn("VNet-connected ACR Tasks pool", proc.stderr)
 
-    def test_customer_workshop_manual_apply_block(self):
+    def test_packaged_app_apply_transfers_and_removes_secrets(self):
         image = "acr.example/drtest-app:workshop-test"
-        proc = self.run_script("gen-app-config.sh", {"APP_IMAGE": image})
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        state = WORK / "state"
-        state.mkdir(exist_ok=True)
-        for region in ("krc", "krs"):
-            result = subprocess.run(
-                [shutil.which("kubectl"), "kustomize", str(WORK / "overlays" / region)],
-                text=True, capture_output=True,
-            )
-            self.assertEqual(result.returncode, 0, result.stderr)
-            (state / f"app-{region}.yaml").write_text(result.stdout)
-        guide = (ROOT / "workshop" / "labs" / "04-application.md").read_text(encoding="utf-8")
-        section = guide.split("## 4-3.", 1)[1].split("## 4-4.", 1)[0]
-        block = section.split("```bash\n", 1)[1].split("```", 1)[0]
-        calls = WORK / "workshop-apply-calls.txt"
+        calls = WORK / "app-calls.txt"
         calls.unlink(missing_ok=True)
-        command = """
-source scripts/common.sh
-load_config
-aks_run() {
-  local key="$1" command="$2" marker="$3" secret="$4" second_marker="$5" manifest="$6" expected
-  [[ "$marker" == --file && "$second_marker" == --file && "$command" == *"kubectl apply -f app-secrets.json"* ]]
-  [[ "$command" != *workshop-pg* && "$command" != *workshop-krc* && "$command" != *workshop-krs* ]]
-  if [[ "$key" == primary ]]; then expected=workshop-krc; else expected=workshop-krs; fi
-  jq -e --arg redis "$expected" '.kind=="Secret" and .metadata.namespace=="drtest" and
-    .stringData.PG_PASSWORD=="workshop-pg" and .stringData.REDIS_KEY==$redis' "$secret" >/dev/null
-  grep -Fq "$APP_IMAGE" "$manifest"
-  printf '%s\\n' "$key" >>"$WORKSHOP_CALLS"
-}
-"""
-        proc = shell(command + block, self.environment | {
-            "APP_IMAGE": image, "PG_PASSWORD": "workshop-pg",
+        proc = self.run_script("app-apply.sh", {
+            "APP_IMAGE": image, "PG_USER": "testadmin", "PG_PASSWORD": "workshop-pg",
             "REDIS_KEY_KRC": "workshop-krc", "REDIS_KEY_KRS": "workshop-krs",
-            "WORKSHOP_CALLS": calls.as_posix(),
+            "MOCK_VALIDATE_SECRETS": "true", "CONFIRM": "DEPLOY APP test-subscription test",
         })
         self.assertEqual(proc.returncode, 0, proc.stderr)
-        self.assertEqual(calls.read_text().splitlines(), ["primary", "secondary"])
-        self.assertFalse(list(state.glob("workshop-app.*")), "Workshop temporary Secrets must be removed.")
+        history = calls.read_text()
+        self.assertEqual(history.count("kubectl apply -f app-secrets.json"), 2)
+        self.assertIn("krc-aks", history)
+        self.assertIn("krs-aks", history)
+        for secret in ("workshop-pg", "workshop-krc", "workshop-krs"):
+            self.assertNotIn(secret, history + proc.stdout + proc.stderr)
+        self.assertFalse(list((WORK / "state").glob("app-deploy.*")), "Temporary Secrets must be removed.")
 
     def test_aks_attachments_require_repeated_file_options(self):
         (WORK / "config.json").write_text(json.dumps(self.config))

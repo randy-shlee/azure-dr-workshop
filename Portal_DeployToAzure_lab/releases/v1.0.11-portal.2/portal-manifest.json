@@ -1,0 +1,13 @@
+{
+  "cloudValidation": "NotRun",
+  "imageUri": "https://github.com/randy-shlee/azure-dr-workshop/releases/download/v1.0.11-portal.2/app-image.tar.gz",
+  "repository": "randy-shlee/azure-dr-workshop",
+  "templateUri": "https://raw.githubusercontent.com/randy-shlee/azure-dr-workshop/v1.0.11-portal.2/Portal_DeployToAzure_lab/releases/v1.0.11-portal.2/azuredeploy.json",
+  "runbookSha256": "4cc5b9e67138e24e867f057e94ac4f2123f268420901edc65c58e1bf8792e067",
+  "imageSha256": "c2ef7881df8eae334d49953aaeba81c85d7b618892fcb1c7d41ec54504ce52d3",
+  "runbookUri": "https://github.com/randy-shlee/azure-dr-workshop/releases/download/v1.0.11-portal.2/workshop-bootstrap.ps1",
+  "templateSha256": "3d5b824f8ca93e514a8025ed59efd22637347c8af580ac4c66a8eb6784949818",
+  "releaseTag": "v1.0.11-portal.2",
+  "sourceReleaseTag": "v1.0.11",
+  "publicationStatus": "PrereleaseValidation"
+}

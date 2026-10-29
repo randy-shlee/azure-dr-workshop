@@ -22,17 +22,17 @@ Azure Cloud Shell의 사용 범위와 장시간 DR 실행 환경은 첫 단계�
 
 ## 배포 버튼
 
-**현재 버튼은 미게시 준비본입니다.** 연결된 태그의 템플릿과 이미지·runbook이 공개되기 전에는
-사용할 수 없습니다. 실제 포털 배포와 DR 전환·원복도 아직 실증하지 않았습니다.
+**현재 버튼은 실환경 검증용 후보입니다.** 연결된 태그의 템플릿과 이미지·runbook이 공개되기 전에는
+사용할 수 없습니다. 공개 prerelease는 최종 검증 완료를 뜻하지 않으며, 실제 배포와 DR 결과는 별도로 확인합니다.
 이 상태에서 배포 오류를 우회하거나 기존 환경에 같은 prefix로 재배포하지 않습니다.
 
 현재 준비본은 최소 런타임으로 재빌드한 v1.0.11 이미지·번들을 사용합니다.
-새 태그는 v1.0.11-portal.1이며 [릴리스 준비 상태](releases/v1.0.11-portal.1/README.md)와
+새 태그는 v1.0.11-portal.2이며 [검증 후보 상태](releases/v1.0.11-portal.2/README.md)와
 [보안 안내](../SECURITY.md)를 먼저 확인합니다. 2026-10-29 앱 이미지의 OS·Python 패키지 감사에서
 알려진 취약점이 없었습니다. 구 이미지 기반 v1.0.8-portal.1 및 OS 취약점으로 차단된
 v1.0.10-portal.1은 계속 사용하지 않습니다.
 
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Frandy-shlee%2Fazure-dr-workshop%2Fv1.0.11-portal.1%2FPortal_DeployToAzure_lab%2Freleases%2Fv1.0.11-portal.1%2Fazuredeploy.json)
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Frandy-shlee%2Fazure-dr-workshop%2Fv1.0.11-portal.2%2FPortal_DeployToAzure_lab%2Freleases%2Fv1.0.11-portal.2%2Fazuredeploy.json)
 
 기존 원클릭 배포 경로는 변경하지 않습니다. 이 경로도 기존 인프라·앱·운영 스크립트를 재사용하며,
 고객용 실습에는 릴리스 제작이나 준비용 테스트 절차를 포함하지 않습니다.
