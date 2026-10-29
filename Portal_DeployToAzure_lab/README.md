@@ -14,16 +14,17 @@ GitHub의 **Deploy to Azure** 버튼에서 Azure 포털로 이동하여 리소�
 | 1 | [포털에서 리소스와 앱 배포](workshop/01-deploy.md) |
 | 2 | [자동 배포 완료와 앱 접속](workshop/02-ready.md) |
 | 3 | [앱 데이터와 샘플 복제 확인](workshop/03-application.md) |
-| 4 | [Failover와 Failback](workshop/04-dr.md) |
+| 4 | [포털 Failover와 Failback](workshop/04-dr-portal.md), [Bash 대안](workshop/04-dr.md) |
 | 5 | [리소스 정리와 종료](workshop/05-cleanup.md) |
 
-배포는 브라우저에서, 운영 명령은 저장소 루트의 **Bash 터미널**에서 실행합니다.
-Azure Cloud Shell의 사용 범위와 장시간 DR 실행 환경은 첫 단계에 설명되어 있습니다.
+배포와 DR 역할 변경은 Azure 포털에서 수행할 수 있습니다. 설정 가져오기와 보조 운영 명령은
+저장소 루트의 **Bash 터미널**에서 실행합니다. Bash DR 대안의 장시간 실행 환경은 첫 단계에 설명되어 있습니다.
 
 ## 배포 버튼
 
-**현재 버튼은 실환경 검증용 후보입니다.** 연결된 태그의 템플릿과 이미지·runbook이 공개되기 전에는
-사용할 수 없습니다. 공개 prerelease는 최종 검증 완료를 뜻하지 않으며, 실제 배포와 DR 결과는 별도로 확인합니다.
+**현재 버튼은 공개 prerelease인 실환경 검증용 후보입니다.** 2026-10-29 빈 환경의 실제 포털 배포,
+양 지역 앱·샘플 복제와 자동 bootstrap 최종 종료를 확인했습니다. **실제 DR 전환·원복은 아직 미실증**입니다.
+공개 prerelease는 최종 검증 완료를 뜻하지 않습니다.
 이 상태에서 배포 오류를 우회하거나 기존 환경에 같은 prefix로 재배포하지 않습니다.
 
 현재 준비본은 최소 런타임으로 재빌드한 v1.0.11 이미지·번들을 사용합니다.
