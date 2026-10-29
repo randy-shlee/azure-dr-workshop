@@ -35,14 +35,16 @@ $destination = Join-Path $lab "releases/$ReleaseTag"
 if (Test-Path -LiteralPath $destination) { throw 'Destination exists. Use a new portal tag; never overwrite a release.' }
 $null = Get-Command bicep -ErrorAction Stop
 $null = New-Item -ItemType Directory -Path $destination
+Copy-Item -LiteralPath (Join-Path $source 'workshop-bootstrap.ps1') -Destination (Join-Path $destination 'workshop-bootstrap.ps1')
 $templatePath = Join-Path $destination 'azuredeploy.json'
 & bicep build (Join-Path $root 'infra/workshop.bicep') --no-restore --outfile $templatePath
 if ($LASTEXITCODE -ne 0) { throw 'Portal entry point compilation failed.' }
 $template = Get-Content -Raw -LiteralPath $templatePath | ConvertFrom-Json -AsHashtable
 $assetUri = "https://github.com/$Repository/releases/download/$ReleaseTag"
+$rawReleaseUri = "https://raw.githubusercontent.com/$Repository/$ReleaseTag/Portal_DeployToAzure_lab/releases/$ReleaseTag"
 $fixed = [ordered]@{
     deployWorkshopBootstrap = $true
-    bootstrapRunbookUri = "$assetUri/workshop-bootstrap.ps1"
+    bootstrapRunbookUri = "$rawReleaseUri/workshop-bootstrap.ps1"
     bootstrapRunbookSha256 = $manifest.runbookSha256.ToLowerInvariant()
     appImageArchiveUri = "$assetUri/app-image.tar.gz"
     appImageArchiveSha256 = $manifest.imageSha256.ToLowerInvariant()

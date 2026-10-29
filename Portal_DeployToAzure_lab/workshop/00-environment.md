@@ -68,7 +68,7 @@ az account show --query '{subscription:name,id:id,tenant:tenantId}' -o table
 다른 branch나 이전 릴리스로 대신 진행하지 않습니다.
 
 ```bash
-export LAB_TAG='v1.0.11-portal.2'
+export LAB_TAG='v1.0.11-portal.3'
 git clone --branch "$LAB_TAG" --single-branch \
   https://github.com/randy-shlee/azure-dr-workshop.git azure-dr-portal
 cd azure-dr-portal

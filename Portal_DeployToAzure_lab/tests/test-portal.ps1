@@ -28,6 +28,11 @@ Assert-Portal ($settings.Count -eq 1 -and $settings[0].properties.isEncrypted) '
 $folder = Split-Path $TemplatePath -Parent
 $manifest = Get-Content -Raw -LiteralPath (Join-Path $folder 'portal-manifest.json') | ConvertFrom-Json
 Assert-Portal ((Get-FileHash $TemplatePath -Algorithm SHA256).Hash -ieq $manifest.templateSha256) 'Template bytes must match manifest.'
+$expectedRunbookUri = "https://raw.githubusercontent.com/$($manifest.repository)/$($manifest.releaseTag)/Portal_DeployToAzure_lab/releases/$($manifest.releaseTag)/workshop-bootstrap.ps1"
+Assert-Portal ($manifest.runbookUri -ceq $expectedRunbookUri) 'Automation requires the immutable raw runbook URL, not a redirected Release asset.'
+$publishedRunbookPath = Join-Path $folder 'workshop-bootstrap.ps1'
+Assert-Portal (Test-Path -LiteralPath $publishedRunbookPath) 'The tag-pinned raw runbook must be included in the release folder.'
+Assert-Portal ((Get-FileHash $publishedRunbookPath -Algorithm SHA256).Hash -ieq $manifest.runbookSha256) 'Raw runbook bytes must match the pinned asset SHA256.'
 foreach ($pair in @(@('appImageArchiveUri', 'imageUri'), @('appImageArchiveSha256', 'imageSha256'),
         @('bootstrapRunbookUri', 'runbookUri'), @('bootstrapRunbookSha256', 'runbookSha256'))) {
     Assert-Portal ($template.parameters[$pair[0]].defaultValue -ceq $manifest.($pair[1])) 'Asset pin differs from manifest.'
