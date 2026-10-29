@@ -22,21 +22,8 @@ GitHub의 **Deploy to Azure** 버튼에서 Azure 포털로 이동하여 리소�
 
 ## 배포 버튼
 
-**현재 버튼은 공개 prerelease인 실환경 검증용 후보입니다.** 2026-10-29 빈 환경의 실제 포털 배포,
-양 지역 앱·샘플 복제와 자동 bootstrap 최종 종료를 확인했습니다. **실제 DR 전환·원복은 아직 미실증**입니다.
-공개 prerelease는 최종 검증 완료를 뜻하지 않습니다.
-이 상태에서 배포 오류를 우회하거나 기존 환경에 같은 prefix로 재배포하지 않습니다.
-
-현재 준비본은 최소 런타임으로 재빌드한 v1.0.11 이미지·번들을 사용합니다.
-새 태그는 v1.0.11-portal.4이며 [검증 후보 상태](releases/v1.0.11-portal.4/README.md)와
-[보안 안내](../SECURITY.md)를 먼저 확인합니다. 2026-10-29 앱 이미지의 OS·Python 패키지 감사에서
-알려진 취약점이 없었습니다. 구 이미지 기반 v1.0.8-portal.1 및 OS 취약점으로 차단된
-v1.0.10-portal.1은 계속 사용하지 않습니다.
+배포 전 [보안 안내](../SECURITY.md)를 확인하고, 이번 실습 전용의 새 prefix를 사용합니다.
+기존 환경에 같은 prefix로 전체 템플릿을 재배포하지 않습니다. 배포 실패 시 오류와 현재 리소스 상태를
+확인한 뒤 진행하며, 보호 설정을 해제하거나 오류를 우회하지 않습니다.
 
 [![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Frandy-shlee%2Fazure-dr-workshop%2Fv1.0.11-portal.4%2FPortal_DeployToAzure_lab%2Freleases%2Fv1.0.11-portal.4%2Fazuredeploy.json)
-
-v1.0.11-portal.2는 실제 배포에서 Automation의 GitHub Release 링크 가져오기에 실패했습니다.
-새 후보는 동일한 SHA256의 runbook을 태그 고정 raw URL로 제공하며, 이전 후보로 재시도하지 않습니다.
-
-기존 원클릭 배포 경로는 변경하지 않습니다. 이 경로도 기존 인프라·앱·운영 스크립트를 재사용하며,
-고객용 실습에는 릴리스 제작이나 준비용 테스트 절차를 포함하지 않습니다.

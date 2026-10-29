@@ -6,7 +6,7 @@
 역할 변경에 Cloud Shell이나 Bash 스크립트를 사용하지 않는 절차입니다.
 기존 Bash 버전과 같은 환경에서 동시에 실행하지 않습니다.
 
-이 절차는 공식 문서와 기존 전환 순서를 대조한 포털판입니다. **포털에서의 실제 전환·원복은 아직 미실증**입니다.
+전환 전 각 서비스의 현재 역할과 복제 상태를 확인하고, 아래 순서대로 진행합니다.
 메뉴 이름은 영어 포털 기준이며 표시 언어와 화면 개편에 따라 달라질 수 있습니다.
 필요한 메뉴·Planned 옵션이 없거나 상태를 확인할 수 없으면 중단합니다. 다른 종류의 승격으로 대신하지 않습니다.
 
@@ -87,6 +87,9 @@ Storage account와 일반 primary Blob hostname은 그대로 사용합니다. �
 **Break pairing**으로 전환을 대신하지 않고 namespace/alias를 삭제하지 않습니다.
 RBAC와 private endpoint가 자동 복제된다고 가정하지 않습니다. 메뉴가 없거나 권한/동기화 오류면 중단합니다.
 
+Premium의 두 복제 방식은 [Event Hubs Premium 비교](#5-event-hubs-premium)를 확인합니다.
+이 실습에서는 아래 비교를 이유로 SKU나 EH 구성을 변경하지 않습니다.
+
 ### 3. PostgreSQL: KRS replica를 Planned switchover
 
 1. 현재 primary인 **KRC PostgreSQL flexible server → Settings → Replication**을 엽니다.
@@ -155,6 +158,9 @@ AKS 노드나 앱을 중지·재배포하지 않습니다. 앱의 오류/partial
 기존 KRC를 삭제하거나 다시 pairing하여 첫 상태로 맞추지 않습니다.
 다음 보호 구성은 새 EMPTY namespace와 별도 변경 승인 작업이며 이번 원복 범위 밖입니다.
 
+이 제약은 metadata Geo-DR의 특성입니다. Premium Geo-replication의 원복은
+[기존 지역을 다시 승격하는 별도 절차](#5-event-hubs-premium)입니다.
+
 ### 4. Traffic Manager와 probe 설정 확인
 
 1. backend KRC 복귀가 끝난 뒤 **Endpoints → krc → Enabled → Save**, Online을 확인합니다.
@@ -165,7 +171,68 @@ AKS 노드나 앱을 중지·재배포하지 않습니다. 앱의 오류/partial
    다르면 승인된 원래 값으로 복구하고 Save 후 양 Online을 다시 확인합니다. 원래 값이 없으면 추측하지 않습니다.
 5. TM 앱에서 새 UUID로 **쓰기 → 읽기**, Blob/PG 일치와 Redis/Search/EH 접근을 다시 확인합니다.
 
-## 5. 완료 기록과 부분 실패
+## 5. Event Hubs Premium
+
+**이 실습은 Standard metadata Geo-DR를 그대로 사용합니다.** 아래는 Premium 환경을 설계·운영할 때의 비교입니다.
+**Premium SKU만 선택한다고 payload 복제나 failback이 자동으로 제공되는 것은 아닙니다.**
+Premium에서는 기존 **Geo-disaster recovery(Geo-recovery)**와 **Geo-replication** 중 실제 구성된 기능을 먼저 구분합니다.
+
+| 항목 | 이 실습: Standard metadata Geo-DR | Premium metadata Geo-DR | Premium Geo-replication |
+|---|---|---|---|
+| 구성 | 두 namespace와 DR alias | 두 Premium namespace와 DR alias | 하나의 namespace에 primary/secondary 지역 구성 |
+| 복제 대상 | Event Hub·consumer group 등 metadata | 동일. 이벤트 본문은 복제하지 않음 | metadata와 이벤트 본문, 서비스가 관리하는 consumer offset |
+| 앱 주소 | DR alias FQDN | DR alias FQDN | 동일 namespace FQDN. 별도 DR alias로 전환하지 않음 |
+| 포털 메뉴 | Geo-recovery → Failover | Geo-recovery → Failover | Geo-replication → secondary의 failover/promotion 아이콘 |
+| 전환 후 기존 primary | 별도 namespace로 남고 pairing 해제 | 동일 | secondary 지역으로 역할 변경 |
+| 원래 지역으로 복귀 | 기존 primary로 failback 미지원 | 동일. Premium이어도 이 제약은 유지 | 복구·재동기화 후 원래 지역을 다시 Planned promotion |
+| 데이터 손실·읽기 재개 | 이전 이벤트·offset 자동 이식 없음 | 동일 | 복제 모드·promotion 방식과 checkpoint 준비에 따라 달라짐 |
+
+### Premium Geo-replication: Failover
+
+이 절차는 **Geo-replication을 사전에 구성한 별도 Premium 환경**에서만 적용합니다.
+원하는 두 지역의 기능 지원 여부, PU 용량·할당량·비용, 초기 복제 완료를 확인합니다.
+KRC/KRS를 사용할 수 있다고 가정하거나 현재 Standard 계정의 SKU만 바꾸지 않습니다.
+두 앱 지역의 private endpoint·DNS·RBAC와 동일 namespace hostname 사용도 별도로 준비합니다.
+
+1. 이번 namespace → **Geo-replication**에서 현재 primary와 승격할 secondary 지역을 확인합니다.
+2. publisher 쓰기를 중단하고 replication 상태·lag를 확인합니다. 진행 중 작업이나 복제 오류가 있으면 중단합니다.
+3. 대상 secondary의 **failover/promotion 아이콘**을 선택하고 **Planned**를 선택합니다.
+4. 대상 지역을 다시 대조하고 확인란에 `promote`를 입력해 승격을 시작합니다.
+   지연을 줄이려고 **Forced**로 바꾸지 않습니다. Planned는 양 지역의 동기화를 기다립니다.
+5. 완료 후 새 primary가 대상 지역이고 기존 primary는 secondary인지 확인합니다.
+   namespace hostname은 유지합니다. 승격 중에는 송수신이 일시 중단될 수 있으므로 재연결·retry를 확인합니다.
+6. 새 primary에서 테스트 이벤트 본문을 보내고 실제 consumer로 읽어 고유 ID를 대조합니다.
+   이 실습 앱의 EH send/sequence metadata만으로 본문 복제나 consumer 재개를 검증했다고 판정하지 않습니다.
+
+### Premium Geo-replication: Failback
+
+자동 원복이 아니라 **현재 secondary인 원래 지역을 다시 primary로 승격**하는 작업입니다.
+기존 metadata Geo-DR의 alias 역전환이나 재pairing과는 다릅니다.
+
+1. 원래 지역이 복구되어 secondary로 정상 참여하고, 새 primary에서 생성한 데이터까지 재동기화됐는지 확인합니다.
+   초기 실습의 manifest나 이전 lag 관측값으로 현재 EH 동기화를 대신하지 않습니다.
+2. publisher 쓰기를 중단하고 **같은 namespace → Geo-replication**에서 원래 지역의 승격 아이콘을 선택합니다.
+3. **Planned**와 원래 지역을 확인하고 `promote`를 입력해 재승격합니다. **Forced**는 사용하지 않습니다.
+4. 완료 후 원래 지역 primary/다른 지역 secondary, 복제 상태, 동일 hostname의 송수신을 확인합니다.
+   전환 전·전환 후·원복 후 이벤트 ID와 consumer 재개·중복 처리 결과를 기록합니다.
+5. **Remove secondary**나 alias/namespace 삭제로 원복을 대신하지 않습니다. secondary 제거는 해당 복제본 데이터를 삭제합니다.
+
+### 복제 모드와 consumer 주의사항
+
+- **Synchronous:** secondary commit까지 확인하므로 복제에 따른 손실을 최소화하지만, 지역 간 지연이 쓰기에 반영됩니다.
+  secondary 장애가 primary 쓰기 가용성에도 영향을 줍니다. 전체 앱의 RPO/RTO나 중복 없는 처리를 보장하는 뜻은 아닙니다.
+- **Asynchronous:** 설정한 최대 replication lag 내에서 복제합니다. lag가 커지면 throttling이 발생할 수 있고,
+  미복제 데이터가 있는 상태의 **Forced promotion은 데이터 손실**을 일으킬 수 있습니다.
+- **Kafka:** 서비스에 commit한 consumer offset을 복제합니다. 지원 client/API 버전을 확인합니다.
+- **Event Hubs SDK/AMQP:** Blob 등 **외부 checkpoint store는 별도 보호**가 필요합니다.
+  양 지역에서 접근 가능한 checkpoint store와 지원 SDK·checkpoint 형식을 준비하고, 재처리·중복을 처리합니다.
+- **비용:** Premium PU는 각 복제 지역에 과금되며 데이터 복제 전송 비용도 발생합니다.
+  별도 환경 구성·비용·변경 승인을 받은 뒤 적용합니다. 이 설명은 현재 실습의 SKU·템플릿·스크립트를 변경하지 않습니다.
+
+## 6. 완료 기록과 부분 실패
+
+아래 완료표는 **Standard metadata Geo-DR를 사용하는 이 실습** 기준입니다.
+별도 Premium Geo-replication 환경에서는 원래 지역 primary 복귀와 실제 consumer 재개 결과를 별도로 기록합니다.
 
 | 단계 | 시작/완료 UTC | 실제 리소스 | 완료 증거 |
 |---|---|---|---|
@@ -183,13 +250,16 @@ Storage/PG 역할, EH alias, TM endpoint 현재 상태부터 기록합니다. �
 
 ## 공식 근거
 
-2026-10-29 기준 공식 문서와 대조했습니다. UI 개편 시 화면의 대상·의미를 먼저 확인합니다.
+UI 개편 시 화면의 대상·의미를 먼저 확인합니다.
 
 - [Storage 계정 failover: Portal, Planned 선택과 Redundancy](https://learn.microsoft.com/azure/storage/common/storage-initiate-account-failover)
 - [Storage Planned failover/failback 동작](https://learn.microsoft.com/azure/storage/common/storage-failover-customer-managed-planned)
 - [PostgreSQL replica switchover: Portal](https://learn.microsoft.com/azure/postgresql/read-replica/how-to-switch-over-replica-to-primary)
 - [PostgreSQL promotion 제약](https://learn.microsoft.com/azure/postgresql/read-replica/concepts-read-replicas-promote)
 - [Event Hubs Geo-DR: Portal failover와 fail-forward](https://learn.microsoft.com/azure/event-hubs/configure-geo-disaster-recovery)
+- [Event Hubs metadata Geo-DR의 지원 tier와 복제 범위](https://learn.microsoft.com/azure/event-hubs/event-hubs-geo-dr)
+- [Event Hubs Geo-replication: 데이터·offset 복제와 복제 모드](https://learn.microsoft.com/azure/event-hubs/geo-replication)
+- [Event Hubs Geo-replication: Portal Planned promotion](https://learn.microsoft.com/azure/event-hubs/use-geo-replication)
 - [Traffic Manager endpoint Enabled/Disabled](https://learn.microsoft.com/azure/traffic-manager/traffic-manager-manage-endpoints)
 - [Azure Managed Redis active geo-replication](https://learn.microsoft.com/azure/redis/how-to-active-geo-replication)
 
