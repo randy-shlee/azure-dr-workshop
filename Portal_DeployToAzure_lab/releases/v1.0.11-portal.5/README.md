@@ -1,12 +1,22 @@
 # Portal Deployment: v1.0.11-portal.5
 
-Not published or cloud-validated. Publish the exact tag-pinned template and both
-hash-verified Release assets before using this button. ARM success only starts
-the asynchronous app bootstrap; verify app and sample completion separately.
+Prerelease validation candidate, not a stable release. GitHub Release state determines
+publication. This candidate has not undergone a new cloud deployment. ARM success only
+starts the asynchronous app bootstrap; verify app and sample completion separately.
 
 [![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#view/Microsoft_Azure_CreateUIDef/CustomDeploymentBlade/uri/https%3A%2F%2Fraw.githubusercontent.com%2Frandy-shlee%2Fazure-dr-workshop%2Fv1.0.11-portal.5%2FPortal_DeployToAzure_lab%2Freleases%2Fv1.0.11-portal.5%2Fazuredeploy.json/uiFormDefinitionUri/https%3A%2F%2Fraw.githubusercontent.com%2Frandy-shlee%2Fazure-dr-workshop%2Fv1.0.11-portal.5%2FPortal_DeployToAzure_lab%2Freleases%2Fv1.0.11-portal.5%2FuiFormDefinition.json)
 
-Source assets: v1.0.11. See ../../README.md for the lab and publication gates.
+Source assets: v1.0.11. See ../../README.md for the lab.
+
+## Validation evidence
+
+- Portal sandbox rendered the visible dated admin ID, password rules and confirmation.
+- The deployment-record location defaults to Korea Central; resource regions remain unchanged.
+- Form expression tests and the official Portal form schema passed local validation.
+- Portal contracts and unchanged image/runbook source-asset checks passed.
+- Git preserves the hash-pinned form and runbook bytes without newline conversion.
+- A new full deployment, failover, failback and cleanup are not proven for this candidate.
+- Publish as a prerelease, not latest or stable. Preserve previous tags and assets.
 
 ## Credential form
 

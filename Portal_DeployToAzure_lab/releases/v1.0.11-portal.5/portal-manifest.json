@@ -1,5 +1,5 @@
 {
-  "publicationStatus": "LocalOnly",
+  "publicationStatus": "PrereleaseValidation",
   "uiFormDefinitionUri": "https://raw.githubusercontent.com/randy-shlee/azure-dr-workshop/v1.0.11-portal.5/Portal_DeployToAzure_lab/releases/v1.0.11-portal.5/uiFormDefinition.json",
   "runbookSha256": "4cc5b9e67138e24e867f057e94ac4f2123f268420901edc65c58e1bf8792e067",
   "releaseTag": "v1.0.11-portal.5",
