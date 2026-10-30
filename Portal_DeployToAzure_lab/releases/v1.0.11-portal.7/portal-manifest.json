@@ -1,0 +1,16 @@
+{
+  "uiFormDefinitionUri": "https://raw.githubusercontent.com/randy-shlee/azure-dr-workshop/v1.0.11-portal.7/Portal_DeployToAzure_lab/releases/v1.0.11-portal.7/uiFormDefinition.json",
+  "imageUri": "https://github.com/randy-shlee/azure-dr-workshop/releases/download/v1.0.11-portal.7/app-image.tar.gz",
+  "releaseTag": "v1.0.11-portal.7",
+  "templateSha256": "a71887b8629683a7270512bea56866459b43ef56cb1151d1ca8538df6a07163b",
+  "bootstrapSource": "CurrentRepository",
+  "cloudValidation": "NotRun",
+  "repository": "randy-shlee/azure-dr-workshop",
+  "imageSha256": "c2ef7881df8eae334d49953aaeba81c85d7b618892fcb1c7d41ec54504ce52d3",
+  "runbookUri": "https://raw.githubusercontent.com/randy-shlee/azure-dr-workshop/v1.0.11-portal.7/Portal_DeployToAzure_lab/releases/v1.0.11-portal.7/workshop-bootstrap.ps1",
+  "sourceReleaseTag": "v1.0.11",
+  "uiFormDefinitionSha256": "cb2588bdac2102b401884c07b0591b9ddb0be1621868c41304ff7eadfe37cd3e",
+  "runbookSha256": "efb11553a50bd1488794934b23ab1c66aedc6eb97e623d9a2f37b303fb1f28b1",
+  "publicationStatus": "PrereleaseValidation",
+  "templateUri": "https://raw.githubusercontent.com/randy-shlee/azure-dr-workshop/v1.0.11-portal.7/Portal_DeployToAzure_lab/releases/v1.0.11-portal.7/azuredeploy.json"
+}

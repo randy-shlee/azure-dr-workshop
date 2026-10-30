@@ -3,7 +3,8 @@
 param(
     [Parameter(Mandatory)][ValidatePattern('^[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+$')][string]$Repository,
     [Parameter(Mandatory)][ValidatePattern('^v[0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.-]+)?$')][string]$ReleaseTag,
-    [Parameter(Mandatory)][string]$SourceReleasePath
+    [Parameter(Mandatory)][string]$SourceReleasePath,
+    [switch]$RefreshBootstrapSource
 )
 $ErrorActionPreference = 'Stop'
 $lab = Split-Path $PSScriptRoot -Parent
@@ -31,12 +32,34 @@ $runbook = [IO.File]::ReadAllText((Join-Path $source 'workshop-bootstrap.ps1'))
 if ($runbook.Contains('# __WORKSHOP_RELEASE_CONSTANTS__') -or $runbook -notmatch '\$script:WorkshopBundle\s*=') {
     throw 'The runbook must be packaged, with its source bundle and pinned tool checksums embedded.'
 }
+if ($RefreshBootstrapSource) {
+    $tokens = $null; $errors = $null
+    $ast = [Management.Automation.Language.Parser]::ParseFile((Join-Path $root 'scripts/package-workshop-release.ps1'), [ref]$tokens, [ref]$errors)
+    if ($errors.Count) { throw 'Source bundle helper has parse errors.' }
+    $helper = @($ast.EndBlock.Statements | Where-Object {
+        $_ -is [Management.Automation.Language.FunctionDefinitionAst] -and $_.Name -eq 'New-SourceBundle'
+    })
+    if ($helper.Count -ne 1) { throw 'Expected one canonical source bundle helper.' }
+    Set-Item Function:New-SourceBundle -Value $helper[0].Body.GetScriptBlock()
+    $bundle = New-SourceBundle $root
+    $pattern = '(?m)^\$script:WorkshopBundle\s*=\s*''[A-Za-z0-9+/=]+'''
+    if ([regex]::Matches($runbook, $pattern).Count -ne 1) { throw 'Expected one packaged source bundle.' }
+    $runbook = [regex]::Replace($runbook, $pattern, [Text.RegularExpressions.MatchEvaluator]{
+        param($match) '$script:WorkshopBundle = ' + "'$bundle'"
+    })
+}
 $destination = Join-Path $lab "releases/$ReleaseTag"
 if (Test-Path -LiteralPath $destination) { throw 'Destination exists. Use a new portal tag; never overwrite a release.' }
 $null = Get-Command bicep -ErrorAction Stop
 $null = New-Item -ItemType Directory -Path $destination
 [IO.File]::WriteAllText((Join-Path $destination '.gitattributes'), "workshop-bootstrap.ps1 -text`nuiFormDefinition.json -text`n", [Text.UTF8Encoding]::new($false))
-Copy-Item -LiteralPath (Join-Path $source 'workshop-bootstrap.ps1') -Destination (Join-Path $destination 'workshop-bootstrap.ps1')
+$runbookPath = Join-Path $destination 'workshop-bootstrap.ps1'
+if ($RefreshBootstrapSource) {
+    [IO.File]::WriteAllText($runbookPath, $runbook, [Text.UTF8Encoding]::new($false))
+} else {
+    Copy-Item -LiteralPath (Join-Path $source 'workshop-bootstrap.ps1') -Destination $runbookPath
+}
+$runbookHash = (Get-FileHash -LiteralPath $runbookPath -Algorithm SHA256).Hash.ToLowerInvariant()
 $templatePath = Join-Path $destination 'azuredeploy.json'
 & bicep build (Join-Path $root 'infra/workshop.bicep') --no-restore --outfile $templatePath
 if ($LASTEXITCODE -ne 0) { throw 'Portal entry point compilation failed.' }
@@ -46,7 +69,7 @@ $rawReleaseUri = "https://raw.githubusercontent.com/$Repository/$ReleaseTag/Port
 $fixed = [ordered]@{
     deployWorkshopBootstrap = $true
     bootstrapRunbookUri = "$rawReleaseUri/workshop-bootstrap.ps1"
-    bootstrapRunbookSha256 = $manifest.runbookSha256.ToLowerInvariant()
+    bootstrapRunbookSha256 = $runbookHash
     appImageArchiveUri = "$assetUri/app-image.tar.gz"
     appImageArchiveSha256 = $manifest.imageSha256.ToLowerInvariant()
     deployEventHubs = $true; deployRedis = $true; deployAiSearch = $true
@@ -65,6 +88,7 @@ $null = $template.parameters.administratorPassword.Remove('defaultValue')
 $template.metadata['portalLab'] = @{
     sourceReleaseTag = $manifest.releaseTag
     portalReleaseTag = $ReleaseTag
+    bootstrapSource = if ($RefreshBootstrapSource) { 'CurrentRepository' } else { 'SourceRelease' }
     applicationReadiness = 'Asynchronous: ARM Succeeded is not application or sample readiness.'
 }
 [IO.File]::WriteAllText($templatePath, (($template | ConvertTo-Json -Depth 100).Replace("`r`n", "`n") + "`n"), [Text.UTF8Encoding]::new($false))
@@ -100,12 +124,13 @@ Source assets: $($manifest.releaseTag). See ../../README.md for the lab and publ
 - These input checks do not prove Azure policy, quota, permissions or deployment success.
 
 Before promoting the lab button, publish and verify both immutable JSON URLs and the
-unchanged image/runbook assets. Preview the form in Azure Portal using synthetic values
+hash-verified image/runbook assets. Preview the form in Azure Portal using synthetic values
 only, including blank inputs, reserved IDs, weak passwords and mismatched confirmation.
 Do not submit a deployment just to check the form. Never automate a filled secret form.
 "@.Replace("`r`n", "`n"), [Text.UTF8Encoding]::new($false))
 @{
     repository = $Repository; releaseTag = $ReleaseTag; sourceReleaseTag = $manifest.releaseTag
+    bootstrapSource = $template.metadata.portalLab.bootstrapSource
     templateUri = $templateUri; templateSha256 = (Get-FileHash $templatePath -Algorithm SHA256).Hash.ToLowerInvariant()
     uiFormDefinitionUri = $formUri; uiFormDefinitionSha256 = (Get-FileHash $formPath -Algorithm SHA256).Hash.ToLowerInvariant()
     imageUri = $fixed.appImageArchiveUri; imageSha256 = $fixed.appImageArchiveSha256
@@ -113,5 +138,5 @@ Do not submit a deployment just to check the form. Never automate a filled secre
     publicationStatus = 'LocalOnly'; cloudValidation = 'NotRun'
 } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $destination 'portal-manifest.json') -Encoding utf8NoBOM
 Write-Output "Prepared locally: $destination"
-Write-Output "Publish the source app-image.tar.gz and workshop-bootstrap.ps1 unchanged as $ReleaseTag Release assets."
+Write-Output "Publish the source app-image.tar.gz and the prepared workshop-bootstrap.ps1 as $ReleaseTag Release assets."
 Write-Output 'No Git publication, Azure login, resource deployment, image build or original file modification was performed.'

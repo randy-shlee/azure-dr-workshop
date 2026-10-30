@@ -90,6 +90,14 @@ if ($SourceReleasePath) {
         Write-Output 'Security gate passed: known old image cannot be prepared for publication.'
     }
     $runbookPath = Join-Path $SourceReleasePath 'workshop-bootstrap.ps1'
+    if ($manifest.bootstrapSource -eq 'CurrentRepository') {
+        $pattern = '(?m)^\$script:WorkshopBundle\s*=\s*''[A-Za-z0-9+/=]+'''
+        $sourceRunbook = [IO.File]::ReadAllText($runbookPath)
+        $preparedRunbook = [IO.File]::ReadAllText($publishedRunbookPath)
+        Assert-Portal ([regex]::Replace($sourceRunbook, $pattern, '<bundle>') -ceq
+            [regex]::Replace($preparedRunbook, $pattern, '<bundle>')) 'Only the embedded source bundle may change; runbook logic and tool pins must remain unchanged.'
+        $runbookPath = $publishedRunbookPath
+    }
     Assert-Portal ((Get-FileHash $runbookPath -Algorithm SHA256).Hash -ieq $manifest.runbookSha256) 'Packaged runbook bytes changed.'
     Assert-Portal ((Get-FileHash (Join-Path $SourceReleasePath 'app-image.tar.gz') -Algorithm SHA256).Hash -ieq $manifest.imageSha256) 'Image archive bytes changed.'
     $runbook = [IO.File]::ReadAllText($runbookPath)
@@ -101,8 +109,15 @@ if ($SourceReleasePath) {
         $reader = [IO.StreamReader]::new($archive.GetEntry('scripts/workshop-bootstrap-runner.sh').Open())
         try { $runner = $reader.ReadToEnd() } finally { $reader.Dispose() }
         $previous = -1
-        foreach ($stage in @('crane push', 'scripts/search-index.sh', 'scripts/app-apply.sh',
-                'publish_status ApplicationReady', 'scripts/upload-sampledata.sh', 'publish_status Complete')) {
+        $stages = if ($manifest.bootstrapSource -eq 'CurrentRepository') {
+            @('crane push', 'prepare_region primary &', 'prepare_region secondary &', 'prepare_samples &',
+                'wait "$primary_pid"', 'wait "$secondary_pid"', 'publish_status ApplicationReady',
+                'wait "$sample_pid"', 'publish_status Complete')
+        } else {
+            @('crane push', 'scripts/search-index.sh', 'scripts/app-apply.sh',
+                'publish_status ApplicationReady', 'scripts/upload-sampledata.sh', 'publish_status Complete')
+        }
+        foreach ($stage in $stages) {
             $position = $runner.IndexOf($stage, [StringComparison]::Ordinal)
             Assert-Portal ($position -gt $previous) "Packaged application stage missing or out of order: $stage"
             $previous = $position
@@ -111,7 +126,23 @@ if ($SourceReleasePath) {
                 'k8s/base/deployment.yaml', 'k8s/base/service.yaml', 'k8s/jobs/sampledata-upload.yaml')) {
             Assert-Portal ($null -ne $archive.GetEntry($entry)) "Packaged dependency missing: $entry"
         }
+        if ($manifest.bootstrapSource -eq 'CurrentRepository') {
+            $files = @('scripts/common.sh', 'scripts/gen-app-config.sh', 'scripts/app-apply.sh',
+                'scripts/search-index.sh', 'scripts/upload-sampledata.sh', 'scripts/sampledata-program.sh',
+                'scripts/workshop-bootstrap-runner.sh', 'app/sample_layout.py', 'k8s/jobs/sampledata-upload.yaml',
+                'k8s/base/deployment.yaml', 'k8s/base/namespace.yaml', 'k8s/base/serviceaccount.yaml',
+                'k8s/base/service.yaml', 'k8s/base/kustomization.yaml')
+            Assert-Portal ($archive.Entries.Count -eq $files.Count) 'Unexpected bootstrap bundle contents.'
+            foreach ($file in $files) {
+                $entry = $archive.GetEntry($file)
+                Assert-Portal ($null -ne $entry) "Canonical bootstrap source missing: $file"
+                $reader = [IO.StreamReader]::new($entry.Open())
+                try { $actual = $reader.ReadToEnd() } finally { $reader.Dispose() }
+                $expected = [IO.File]::ReadAllText((Join-Path $PSScriptRoot "../../$file")).Replace("`r`n", "`n")
+                Assert-Portal ($actual -ceq $expected) "Bootstrap bundle does not match current source: $file"
+            }
+        }
     } finally { $archive.Dispose(); $stream.Dispose() }
-    Write-Output 'Packaged asset checks passed: unchanged SHA256, embedded application dependencies and automatic phase ordering.'
+    Write-Output 'Packaged asset checks passed: pinned SHA256, embedded application dependencies and automatic phase ordering.'
 }
 Write-Output 'Portal contract checks passed: full bootstrap, protected inputs, RBAC order, fixed assets and tag-pinned button.'
