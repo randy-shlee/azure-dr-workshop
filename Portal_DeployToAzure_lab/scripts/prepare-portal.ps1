@@ -94,6 +94,9 @@ Source assets: $($manifest.releaseTag). See ../../README.md for the lab and publ
   lowercase, digits and symbols; no admin ID within the password (case-insensitive).
 - ID length, letters/digits and reserved names are checked before submission.
 - Approved public CIDRs are comma separated without spaces or JSON brackets.
+- Deployment-record location is handled internally as Korea Central; no region input or region-list API is used.
+- No expiry date is requested; the lifecycle expiry tag is left empty and resources are not automatically deleted.
+- Subscription deployment scope is passed as an ARM ID, not a bare GUID.
 - These input checks do not prove Azure policy, quota, permissions or deployment success.
 
 Before promoting the lab button, publish and verify both immutable JSON URLs and the

@@ -27,6 +27,7 @@ const functions = {
   int: value => Number.parseInt(value, 10)
 };
 function evaluate(expression) {
+  if (!expression.startsWith('[')) return expression;
   return vm.runInNewContext(expression.slice(1, -1), functions, { timeout: 100 });
 }
 function valid(element, value) {
@@ -41,11 +42,11 @@ function credentials(adminId, secret) {
 }
 
 assert.equal(form.view.outputs.kind, 'Subscription');
-assert.equal(elements.basics.location.label, '\ubc30\ud3ec \uc704\uce58');
-assert.equal(elements.basics.location.defaultValue.value, 'koreacentral');
-assert.equal(elements.basics.location.type, 'Microsoft.Common.DropDown');
-assert.equal(elements.basics.locations.request.method, 'GET');
-assert.match(elements.basics.location.toolTip, /deployment records only/);
+assert.equal(Object.hasOwn(elements.basics, 'location'), false);
+assert.equal(Object.hasOwn(elements.basics, 'locations'), false);
+assert.equal(Object.hasOwn(elements.basics, 'expiry'), false);
+assert.equal(form.view.outputs.location, 'koreacentral');
+assert.equal(form.view.outputs.parameters.expiry, '');
 assert.equal(login.type, 'Microsoft.Common.TextBox');
 assert.equal(password.type, 'Microsoft.Common.PasswordBox');
 assert.equal(password.options.hideConfirmation, false);
@@ -67,9 +68,8 @@ for (const secret of ['', 'Short12!', 'workshoponly', 'WORKSHOP1234', 'workshop1
 }
 assert.equal(credentials('pgadmin1030', 'A1!' + 'a'.repeat(125)), true);
 state = {
-  basics: { subscription: { subscriptionId: 'test-subscription' }, location: 'koreacentral',
-    locations: { value: [{ name: 'koreacentral', displayName: 'Korea Central' }, { name: 'eastus', displayName: 'East US' }] },
-    prefix: 'testlab', expiry: '2026-10-31', allowedClientCidrs: '203.0.113.10/32,198.51.100.20/32' },
+  basics: { subscription: { subscriptionId: '11111111-2222-3333-4444-555555555555' },
+    prefix: 'testlab', allowedClientCidrs: '203.0.113.10/32,198.51.100.20/32' },
   postgres: { administratorLogin: 'pgadmin1030', administratorPassword: 'SyntheticOnly123!' },
   capacity: { aksVmSize: 'Standard_D4s_v5', aksNodeCount: '2', kubernetesVersion: '',
     useEphemeralOsDisk: false, postgresVmSize: 'Standard_D2ds_v5' }
@@ -78,13 +78,11 @@ assert.equal(valid(elements.basics.allowedClientCidrs, state.basics.allowedClien
 for (const value of ['0.0.0.0/0', '256.0.0.1/32', '["203.0.113.10/32"]']) {
   assert.equal(valid(elements.basics.allowedClientCidrs, value), false);
 }
-assert.equal(evaluate(form.view.outputs.subscriptionId), 'test-subscription');
+assert.equal(evaluate(form.view.outputs.subscriptionId), '/subscriptions/11111111-2222-3333-4444-555555555555');
+assert.match(evaluate(form.view.outputs.subscriptionId), /^\/subscriptions\/[0-9a-f-]{36}$/i,
+  'Portal deployment options require a subscription ARM ID, not a bare GUID.');
 assert.equal(evaluate(form.view.outputs.location), 'koreacentral');
-assert.equal(evaluate(elements.basics.locations.request.path), '/subscriptions/test-subscription/locations?api-version=2022-12-01');
-assert.equal(JSON.stringify(evaluate(elements.basics.location.constraints.allowedValues)),
-  '[{"label":"Korea Central","value":"koreacentral"},{"label":"East US","value":"eastus"}]');
-state.basics.location = 'eastus';
-assert.equal(evaluate(form.view.outputs.location), 'eastus');
+assert.equal(evaluate(form.view.outputs.parameters.expiry), '');
 assert.equal(evaluate(form.view.outputs.parameters.aksNodeCount), 2);
 assert.equal(JSON.stringify(evaluate(form.view.outputs.parameters.allowedClientCidrs)),
   '["203.0.113.10/32","198.51.100.20/32"]');
