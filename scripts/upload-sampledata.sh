@@ -69,6 +69,6 @@ PY
     exit 0
   fi
   note "Replication pending: lastSyncTime=${last:-unknown}"
-  sleep "${REPLICATION_POLL_SECONDS:-600}"
+  sleep "${REPLICATION_POLL_SECONDS:-60}"
 done
 die 'Replication timeout; sample objects and Job logs retained. Retry safely; existing correct-sized objects are skipped.'

@@ -83,7 +83,8 @@ TTL 0의 한계를 설명하고 반드시 99번으로 복구합니다.
 ## 5. 정리와 종료
 
 [참가자 정리](05-cleanup.md)와 [상세 삭제](../workshop/labs/07-cleanup.md)를 사용합니다.
-paired EH는 전체 폐기 전에 정확한 두 대상을 확인하고 Break pairing을 먼저 수행합니다.
+EH는 전체 폐기 전에 정확한 두 대상을 확인하고 pairing 해제와 남은 alias 삭제를 마칩니다.
+정리 스크립트는 `DELETE EH GEO <prefix>` 확인 후 이 순서를 검증하며, 실패하면 RG 삭제를 중단합니다.
 소유자 승인 없이 `drws1028a`/`drws1028c` 등 공유 검증 환경을 지우지 않습니다.
 현재 로컬 경로의 Automation/예산/custom bootstrap role은 없으므로 삭제를 요구하지 않습니다.
 

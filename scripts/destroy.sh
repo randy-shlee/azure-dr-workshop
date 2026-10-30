@@ -29,6 +29,9 @@ if [[ -n "$bootstrap_role" ]]; then
   [[ "$role_name" == "$PREFIX-workshop-bootstrap" ]] || die 'Bootstrap role name mismatch; refusing deletion.'
   confirm "DELETE BOOTSTRAP ROLE $role_name" CONFIRM_BOOTSTRAP_ROLE
 fi
+if enabled '.features.deployEventHubs' && enabled '.features.enableEventHubsGeoRecovery'; then
+  bash "$ROOT_DIR/scripts/eh-georecovery.sh" cleanup
+fi
 for group in "${groups[@]}"; do az group delete -n "$group" --yes --no-wait; done
 for group in "${groups[@]}"; do az group wait -n "$group" --deleted --interval 20 --timeout 7200; done
 if [[ -n "$budget_name" ]]; then

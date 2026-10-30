@@ -4,7 +4,12 @@ source "$(dirname "$0")/common.sh"
 load_config
 enabled '.features.deployAiSearch' || { note 'AI Search disabled; nothing to initialize.'; exit 0; }
 mkdir -p "$STATE_DIR"
-for key in primary secondary; do
+regions=("$@")
+(( ${#regions[@]} )) || regions=(primary secondary)
+for key in "${regions[@]}"; do
+  [[ "$key" == primary || "$key" == secondary ]] || die "Unexpected region key: $key"
+done
+for key in "${regions[@]}"; do
   region="$(cfg ".$key.region")"
   # Data-plane calls must originate inside each private AKS VNet.
   jq -n --arg client "$(cfg ".$key.identity.clientId")" '
@@ -37,4 +42,4 @@ kubectl apply -f search-index-job.json" --file "$STATE_DIR/search-serviceaccount
   wait_job "$key" search-index-init 2100 | tee "$STATE_DIR/search-$region.log"
   grep -q '^SEARCH_INDEX_VERIFIED' "$STATE_DIR/search-$region.log" || die "Search $region initialization did not verify per-document status."
 done
-note 'Both independent Search indexes seeded. This is not managed cross-region index replication. App MI needs Search Service Contributor AND Search Index Data Contributor.'
+note 'Selected independent Search indexes seeded. This is not managed cross-region index replication. App MI needs Search Service Contributor AND Search Index Data Contributor.'

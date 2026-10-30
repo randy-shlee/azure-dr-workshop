@@ -77,7 +77,8 @@ Job/로그와 실제 읽기/fence의 기준은 [Lab 02](labs/02-data.md)를 따�
 
 `destroy.sh`는 정상 config를 전제로 합니다. 없는 outputs를 임의로 만들어 실패를 숨기지 않습니다.
 포털/ARM에서 실제 생성된 **정확한** RG/managed RG/서비스를 소유자가 확인하고 별도 승인합니다.
-paired EH라면 양 대상 확인 후 Break pairing이 선행입니다.
+paired EH라면 양 대상 확인 후 Break pairing을 수행하고 남은 alias도 삭제합니다.
+pairing 해제 성공만으로 namespace를 삭제할 수 있는 것은 아니므로 양쪽 alias 부재를 확인합니다.
 `MetadataDRCannotDeleteWhenAliasPresentConflict`를 방치한 채 삭제 완료라고 쓰지 않습니다.
 잠금/정책/서비스 실패/권한 오류를 부재로 간주하지 않습니다.
 구독 전체나 wildcard 삭제 명령은 사용하지 않습니다.

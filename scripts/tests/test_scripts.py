@@ -51,6 +51,80 @@ def shell(command, environment=None):
 
 
 class ShellTests(unittest.TestCase):
+    def test_bootstrap_workers_overlap_and_fail_closed(self):
+        runner = (ROOT / "scripts/workshop-bootstrap-runner.sh").read_text()
+        orchestration = "prepare_region() {" + runner.split("prepare_region() {", 1)[1]
+        prefix = r'''
+source scripts/common.sh
+mkdir -p "$STATE_DIR"
+drill_init
+trap - ERR
+worker_pids=()
+trap 'for worker in "${worker_pids[@]}"; do kill "$worker" 2>/dev/null || true; done' EXIT
+publish_status() { printf 'PHASE %s\n' "$1"; }
+aks_run() { :; }
+mkdir() { command mkdir -p "$STATE_DIR"; }
+bash() {
+    local script="${1##*/}" key="${2:-samples}" task
+    if [[ "$script" == search-index.sh || "$script" == upload-sampledata.sh ]]; then
+        printf '%s\n' "$STATE_DIR|$AZURE_CONFIG_DIR" >"$TEST_BARRIER/$key"
+        local deadline=$((SECONDS + 5))
+        while [[ ! -f "$TEST_BARRIER/primary" || ! -f "$TEST_BARRIER/secondary" || ! -f "$TEST_BARRIER/samples" ]]; do
+            (( SECONDS < deadline )) || return 9
+        done
+    fi
+    task="$script:$key"
+    printf 'TASK %s\n' "$task"
+    [[ "$task" != "$MOCK_FAIL" ]] || return 7
+}
+'''
+        for failure in ("", "search-index.sh:primary", "app-apply.sh:secondary", "upload-sampledata.sh:samples"):
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory(dir=ROOT / ".state") as folder:
+                path = pathlib.Path(folder)
+                barrier = path / "barrier"
+                barrier.mkdir()
+                proc = shell(prefix + orchestration, {
+                    "STATE_DIR": (path / "state").as_posix(),
+                    "TEST_BARRIER": barrier.as_posix(), "MOCK_FAIL": failure,
+                })
+                self.assertEqual(proc.returncode == 0, not failure, proc.stderr)
+                self.assertEqual("PHASE Complete" in proc.stdout, not failure, proc.stdout)
+                locations = [file.read_text().strip().split("|") for file in barrier.iterdir()]
+                self.assertEqual(len(locations), 3, proc.stdout + proc.stderr)
+                self.assertEqual(len({entry[0] for entry in locations}), 3)
+                self.assertEqual(len({entry[1] for entry in locations}), 3)
+                for location, _ in locations:
+                    if not location.endswith("/samples"):
+                        self.assertTrue((pathlib.Path(location) / "base/kustomization.yaml").is_file())
+                if not failure:
+                    self.assertLess(proc.stdout.index("PHASE ApplicationReady"), proc.stdout.index("PHASE Complete"))
+
+    def test_sample_replication_poll_preserves_fence_and_override(self):
+        source = (ROOT / "scripts/upload-sampledata.sh").read_text().split("start=$SECONDS", 1)[1]
+        prefix = r'''
+source scripts/common.sh
+need_python
+mkdir -p "$STATE_DIR"
+end=2026-10-30T01:45:20Z
+start=$SECONDS
+cfg() { echo /storage/test; }
+az() {
+    if [[ -f "$STATE_DIR/polled" ]]; then echo '{"lastSyncTime":"2026-10-30T01:46:03Z"}'
+    else touch "$STATE_DIR/polled"; echo '{"lastSyncTime":"2026-10-30T01:40:00Z"}'; fi
+}
+sleep() { printf 'POLL %s\n' "$1"; }
+run_upload_job() { echo 'SECONDARY_READ_VERIFIED {}'; }
+'''
+        for interval in ("", "15"):
+            with self.subTest(interval=interval), tempfile.TemporaryDirectory(dir=ROOT / ".state") as folder:
+                proc = shell(prefix + source, {
+                    "STATE_DIR": pathlib.Path(folder).as_posix(),
+                    "REPLICATION_POLL_SECONDS": interval,
+                })
+                self.assertEqual(proc.returncode, 0, proc.stderr)
+                self.assertIn("POLL " + (interval or "60"), proc.stdout)
+                self.assertEqual(proc.stdout.count("SECONDARY_READ_VERIFIED"), 1)
+
     def test_storage_sync_metric_does_not_hide_future_timestamp(self):
         program = embedded("publish-storage-sync-metric.sh")
         with mock.patch.object(sys, "argv", ["publisher", "2999-01-01T00:00:00Z"]):
@@ -162,6 +236,98 @@ az() { printf '%s\\n' "$*" >>"$DESTROY_CALLS"; }
         self.assertEqual(commands.count("group delete"), 3)
         self.assertNotIn("Microsoft.Consumption/budgets", commands)
         self.assertNotIn("DELETE BUDGET", proc.stderr)
+
+    def test_eh_cleanup_breaks_pair_and_removes_alias_fail_closed(self):
+        primary_id = "/subscriptions/test-subscription/resourceGroups/rg-workshop-krc/providers/Microsoft.EventHub/namespaces/eh-workshop-krc"
+        secondary_id = primary_id.replace("-krc", "-krs")
+        config = {"features": {"deployEventHubs": True, "enableEventHubsGeoRecovery": True},
+                  "eventHubs": {"aliasName": "eh-workshop-dr"},
+                  "primary": {"eventHubs": {"id": primary_id}},
+                  "secondary": {"eventHubs": {"id": secondary_id}}}
+        source = (ROOT / "scripts/eh-georecovery.sh").read_text().split("load_config", 1)[1]
+        prefix = r'''
+source scripts/common.sh
+set -- cleanup
+az() {
+  printf '%s\n' "$*" >>"$EH_CALLS"
+  if [[ "$*" == 'rest --method post '* ]]; then [[ "$EH_CASE" != break-fail ]]; return; fi
+  if [[ "$*" == 'rest --method delete '* ]]; then [[ "$EH_CASE" != delete-fail ]]; return; fi
+  if [[ "$*" == 'resource wait '* ]]; then [[ "$EH_CASE" != wait-fail ]]; return; fi
+  [[ "$*" == 'rest --method get '* ]] || return 1
+  local key=primary role=Primary partner="$EH_SECONDARY" broken=false
+  if [[ "$*" == *'eh-workshop-krs/'* ]]; then key=secondary; role=Secondary; partner="$EH_PRIMARY"; fi
+  if [[ "$EH_CASE" == reversed ]]; then
+    role=Primary; [[ "$key" == secondary ]] || role=Secondary
+  fi
+  if grep -q 'rest --method post ' "$EH_CALLS"; then broken=true; fi
+  if [[ "$*" == *'/disasterRecoveryConfigs?api-version='* ]]; then
+    if [[ "$EH_CASE" == unknown ]]; then printf '{"value":[{"name":"unapproved"}]}';
+    elif [[ "$EH_CASE" == detached && "$key" == primary ]] ||
+         [[ "$broken" == true && "$role" == Secondary ]]; then printf '{"value":[]}';
+    else printf '{"value":[{"name":"eh-workshop-dr"}]}'; fi
+  else
+    if [[ "$broken" == true || "$EH_CASE" == detached ]]; then role=PrimaryNotReplicating; partner=''; fi
+    [[ "$EH_CASE" != foreign || "$key" != primary ]] || partner=/unapproved/namespace
+    MSYS_NO_PATHCONV=1 jq -n --arg role "$role" --arg partner "$partner" \
+      '{name:"eh-workshop-dr",properties:{role:$role,partnerNamespace:$partner,provisioningState:"Succeeded"}}'
+  fi
+}
+'''
+        with tempfile.TemporaryDirectory(dir=ROOT / ".state") as directory:
+            path, calls = pathlib.Path(directory) / "config.json", pathlib.Path(directory) / "calls.txt"
+            path.write_text(json.dumps(config))
+            body = pathlib.Path(directory) / "cleanup-body.sh"
+            body.write_text(source)
+            for case in ("paired", "reversed", "detached", "foreign", "unknown", "break-fail", "delete-fail", "wait-fail"):
+                with self.subTest(case=case):
+                    calls.unlink(missing_ok=True)
+                    proc = shell(prefix + '\nsource "$EH_BODY"', {"CONFIG_FILE": str(path), "EH_CALLS": calls.as_posix(),
+                                 "EH_BODY": body.as_posix(),
+                                 "EH_CASE": case, "EH_PRIMARY": primary_id, "EH_SECONDARY": secondary_id,
+                                 "PREFIX": "workshop", "SUBSCRIPTION_ID": "test-subscription",
+                                 "CONFIRM_EH": "DELETE EH GEO workshop"})
+                    self.assertEqual(proc.returncode == 0, case in ("paired", "reversed", "detached"), proc.stderr)
+                    self.assertTrue(calls.exists(), proc.stderr)
+                    commands = calls.read_text()
+                    if case in ("paired", "reversed"):
+                        active_id = primary_id if case == "paired" else secondary_id
+                        self.assertIn(active_id + "/disasterRecoveryConfigs/eh-workshop-dr/breakPairing", commands)
+                        self.assertLess(commands.index("rest --method post"), commands.index("rest --method delete"))
+                        self.assertIn("--deleted", commands)
+                    elif case == "detached":
+                        self.assertNotIn("rest --method post", commands)
+                        self.assertIn("rest --method delete", commands)
+                    elif case in ("foreign", "unknown"):
+                        self.assertNotIn("rest --method post", commands)
+                        self.assertNotIn("rest --method delete", commands)
+                    elif case in ("break-fail", "wait-fail"):
+                        self.assertNotIn("rest --method delete", commands)
+
+    def test_destroy_requires_eh_cleanup_before_any_group_deletion(self):
+        source = (ROOT / "scripts/destroy.sh").read_text().split("load_config", 1)[1]
+        config = {"primaryResourceGroup": "rg-workshop-krc", "secondaryResourceGroup": "rg-workshop-krs",
+                  "globalResourceGroup": "rg-workshop-global", "budgetName": "",
+                  "features": {"deployEventHubs": True, "enableEventHubsGeoRecovery": True}}
+        prefix = r'''
+source scripts/common.sh
+az() { printf '%s\n' "$*" >>"$EH_CALLS"; }
+bash() { printf 'EH cleanup\n' >>"$EH_CALLS"; [[ "$EH_CASE" == success ]]; }
+'''
+        with tempfile.TemporaryDirectory(dir=ROOT / ".state") as directory:
+            path, calls = pathlib.Path(directory) / "config.json", pathlib.Path(directory) / "calls.txt"
+            for case in ("success", "failure"):
+                path.write_text(json.dumps(config))
+                calls.unlink(missing_ok=True)
+                proc = shell(prefix + source, {"CONFIG_FILE": str(path), "EH_CALLS": calls.as_posix(),
+                             "EH_CASE": case, "PREFIX": "workshop", "SUBSCRIPTION_ID": "test-subscription",
+                             "REQUIRE_OWNER_TAG": "false",
+                             "CONFIRM": "DELETE test-subscription rg-workshop-krc rg-workshop-krs rg-workshop-global"})
+                commands = calls.read_text()
+                self.assertEqual(proc.returncode == 0, case == "success", proc.stderr)
+                if case == "success":
+                    self.assertLess(commands.index("EH cleanup"), commands.index("group delete"))
+                else:
+                    self.assertNotIn("group delete", commands)
 
     def test_remote_exit_and_error_validation(self):
         cases = [
@@ -688,6 +854,26 @@ printf '%s\\n' 'Name: test.trafficmanager.net' 'Address: 203.0.113.10'
         self.assertIn("api-version=2025-09-01", command)
         self.assertIn('all(i.get("status") is True', command.replace('\\"', '"'))
 
+    def test_regional_initialization_can_select_one_region_and_reject_invalid_keys(self):
+        environment = {
+            "APP_IMAGE": "acr.example/drtest-app:workshop-test", "PG_USER": "testadmin",
+            "PG_PASSWORD": "workshop-pg", "REDIS_KEY_KRC": "workshop-krc",
+            "REDIS_KEY_KRS": "workshop-krs", "CONFIRM": "DEPLOY APP test-subscription test",
+        }
+        for script in ("search-index.sh", "app-apply.sh"):
+            for region in ("primary", "secondary", "unexpected"):
+                with self.subTest(script=script, region=region):
+                    calls = WORK / "app-calls.txt"
+                    calls.unlink(missing_ok=True)
+                    proc = self.run_script(f"{script} {region}", environment)
+                    self.assertEqual(proc.returncode == 0, region != "unexpected", proc.stderr)
+                    if script == "app-apply.sh" and region != "unexpected":
+                        history = calls.read_text()
+                        self.assertEqual(history.count("kubectl apply -f app-secrets.json"), 1)
+                        self.assertIn("krc-aks" if region == "primary" else "krs-aks", history)
+                    if region == "unexpected":
+                        self.assertIn("Unexpected region key", proc.stderr)
+
     def test_georecovery_rejects_direct_regional_namespace_app_config(self):
         self.config["secondary"]["eventHubs"]["host"] = "eh-test-krs.servicebus.windows.net"
         proc = self.run_script("gen-app-config.sh")
@@ -747,7 +933,10 @@ az() {
 """
         environment = self.environment | {"PRIMARY_DOC": json.dumps(self.primary),
                                           "SECONDARY_DOC": json.dumps(self.secondary)} | (extra or {})
-        return shell(prefix + "\nset -- " + args + "\n" + source, environment)
+        body = WORK / "eh-recovery-body.sh"
+        body.write_text(source)
+        environment["EH_BODY"] = body.as_posix()
+        return shell(prefix + "\nset -- " + args + '\nsource "$EH_BODY"', environment)
 
     def test_wait_requires_synchronized_metadata_pair(self):
         proc = self.run_recovery("wait krc")

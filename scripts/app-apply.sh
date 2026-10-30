@@ -14,7 +14,12 @@ bash "$ROOT_DIR/scripts/gen-app-config.sh"
 mkdir -p "$STATE_DIR"
 stage="$(mktemp -d "$STATE_DIR/app-deploy.XXXXXX")"
 trap 'rm -f -- "$stage/app.yaml" "$stage/app-secrets.json"; rmdir -- "$stage"' EXIT
-for key in primary secondary; do
+regions=("$@")
+(( ${#regions[@]} )) || regions=(primary secondary)
+for key in "${regions[@]}"; do
+  [[ "$key" == primary || "$key" == secondary ]] || die "Unexpected region key: $key"
+done
+for key in "${regions[@]}"; do
   region="$(cfg ".$key.region")"
   [[ "$region" == krc || "$region" == krs ]] || die "Unexpected region: $region"
   kubectl kustomize "$APP_CONFIG_OUTPUT_DIR/$region" >"$stage/app.yaml"

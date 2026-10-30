@@ -27,14 +27,20 @@ bash scripts/eh-georecovery.sh status
 ## 3. EH pairing 확인
 
 포털에서 현재 EH Primary namespace의 **Geo-recovery → alias**를 확인합니다.
-양 namespace 모두 폐기 대상인데 아직 paired이면 **Break pairing**을 수행한 뒤 RG를 삭제합니다.
+양 namespace 모두 폐기 대상이면 아래 삭제 스크립트가 현재 Primary에서 pairing을 해제하고,
+남은 alias 삭제를 확인한 뒤 RG 삭제를 시작합니다. `DELETE EH GEO <prefix>` 확인도 요구합니다.
 fail-forward로 이미 끊겼다면 다시 연결하거나 역전환하지 않습니다.
 상대 namespace가 보관/공유 대상이면 삭제를 진행하지 않습니다.
+
+포털에서 수동 정리한다면 **Break pairing 성공만으로 종료하지 않습니다.** 남아 있는
+Geo-recovery alias도 삭제하고, 양 namespace에서 alias가 사라진 것을 확인한 뒤 RG를 삭제합니다.
+`MetadataDRCannotDeleteWhenAliasPresentConflict`이면 남은 alias를 먼저 확인합니다.
+스크립트는 외부 partner, 예상 밖 alias, 해제·삭제 실패를 감지하면 RG 삭제를 시작하지 않습니다.
 
 ## 4. 승인된 환경 삭제
 
 ```bash
-unset CONFIRM CONFIRM_BUDGET CONFIRM_BOOTSTRAP_ROLE
+unset CONFIRM CONFIRM_BUDGET CONFIRM_BOOTSTRAP_ROLE CONFIRM_EH
 bash scripts/destroy.sh
 ```
 

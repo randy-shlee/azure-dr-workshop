@@ -33,23 +33,27 @@ lite는 EH status를 제외하며 전체 full 성공이라고 적지 않습니�
 
 ### EH pairing 선행 작업
 
-아직 Primary/Secondary로 paired이면 양 namespace가 모두 **이번 폐기 대상**인지 확인하고,
-현재 Primary의 **Geo-recovery → alias → Break pairing**을 수행합니다.
+양 namespace가 모두 **이번 폐기 대상**인지 확인합니다. 정리 스크립트는 현재 Primary에서
+pairing을 해제하고 남은 alias 삭제를 확인한 뒤 RG 삭제를 시작합니다.
 공유/보관할 상대가 연결되어 있으면 중단합니다.
 이미 fail-forward 후 연결이 끊겼다면 역전환하지 않습니다.
 
-pairing을 남겨 두면 `MetadataDRCannotDeleteWhenAliasPresentConflict`로 EH/RG 삭제가 실패할 수 있습니다.
-`destroy.sh`는 pairing을 자동 해제하지 않으므로 **이 작업부터** 마칩니다.
+포털에서 직접 정리한다면 현재 Primary의 **Geo-recovery → alias → Break pairing** 후
+남은 alias도 삭제하고 양 namespace에서 alias가 사라졌는지 확인합니다.
+pairing 해제만으로 alias까지 삭제되지는 않으며, 남은 alias는
+`MetadataDRCannotDeleteWhenAliasPresentConflict`로 EH/RG 삭제를 막을 수 있습니다.
+스크립트는 외부 partner·예상 밖 alias·해제 또는 삭제 실패 시 RG 삭제를 시작하지 않습니다.
 해제는 환경 폐기 절차이지 DR failover/failback 성공 증거가 아닙니다.
 
 ## 7-3. 승인 후 삭제 — 파괴적
 
 ```bash
-unset CONFIRM CONFIRM_BUDGET CONFIRM_BOOTSTRAP_ROLE
+unset CONFIRM CONFIRM_BUDGET CONFIRM_BOOTSTRAP_ROLE CONFIRM_EH
 REQUIRE_OWNER_TAG=false bash scripts/destroy.sh
 ```
 
 정확한 `DELETE <subscription> <primaryRG> <secondaryRG> <globalRG>`를 승인합니다.
+EH metadata Geo-DR가 활성화된 환경은 `DELETE EH GEO <prefix>`도 별도로 승인합니다.
 현재 로컬 경로의 config는 budgetName이 비어 있고 bootstrap role도 없으므로
 구독 예산/Automation/custom role 삭제를 요구하지 않습니다.
 다른 실제 배포 경로에 해당 항목이 있으면 스크립트가 별도 확인을 요청합니다.

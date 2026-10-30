@@ -17,9 +17,11 @@
 4. **폐기 승인한 환경만** 구독과 정확한 세 RG, 두 AKS managed RG, 보호할 이벤트를 확인합니다.
 5. EH가 아직 paired이면 양 namespace가 모두 폐기 대상인지 확인한 뒤 현재 Primary의
    **Geo-recovery → alias → Break pairing**을 실행합니다.
+   남은 alias도 삭제하고 양 namespace에서 alias가 사라졌는지 확인합니다.
    이미 fail-forward로 연결이 끊겼다면 역전환하지 않습니다.
    공유/보관할 상대가 연결되어 있으면 중단합니다.
 6. 포털에서 승인한 정확한 RG를 삭제하거나 강사가 상세 정리 스크립트를 실행합니다.
+   스크립트는 별도 EH 폐기 확인 후 pairing 해제·alias 삭제를 검증하고 RG 삭제를 시작합니다.
    삭제가 끝난 뒤 managed RG까지 없어졌는지 확인합니다.
 
 현재 로컬 배포는 cloud Automation/custom bootstrap role/구독 예산을 만들지 않습니다.
@@ -27,8 +29,8 @@
 
 ## 안 되면 멈추기
 
-`MetadataDRCannotDeleteWhenAliasPresentConflict`이면 paired EH가 남은 것입니다.
-승인된 양 대상의 pairing부터 확인한 후 실패한 RG 삭제만 재시도합니다.
+`MetadataDRCannotDeleteWhenAliasPresentConflict`이면 EH alias가 남아 있는지 확인합니다.
+승인된 양 대상의 pairing 해제와 남은 alias 삭제를 확인한 후 실패한 RG 삭제만 재시도합니다.
 권한/잠금/정책 오류나 목록을 못 보는 상태를 삭제 완료라고 쓰지 않습니다.
 AKS/PG만 중지해도 Redis/Search/EH/ACR/Storage/PE/IP 등은 계속 과금됩니다.
 

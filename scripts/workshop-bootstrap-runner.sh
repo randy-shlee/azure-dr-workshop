@@ -25,6 +25,7 @@ az login --service-principal -u "$AZURE_CLIENT_ID" --tenant "$AZURE_TENANT_ID" \
 load_config
 drill_init
 trap - ERR
+worker_pids=()
 publish_status() {
   local phase="$1" detail="$2"
   jq -n --arg phase "$phase" --arg detail "$detail" --arg image "${APP_IMAGE:-}" \
@@ -39,6 +40,7 @@ publish_status() {
 bootstrap_exit() {
   local rc="$?"
   trap - EXIT
+  for pid in "${worker_pids[@]}"; do kill "$pid" 2>/dev/null || true; done
   if (( rc != 0 )); then
     note "Bootstrap failed in ${CURRENT_STEP:-bootstrap} (exit $rc); inspect the failed Job."
     csv_log ERROR "${CURRENT_STEP:-bootstrap}" "exit $rc" || note 'Could not persist error CSV.'
@@ -85,12 +87,40 @@ if enabled '.features.deployRedis'; then
   export REDIS_KEY_KRS="$(az rest --method post --url "https://management.azure.com$(cfg '.secondary.redis.id')/databases/default/listKeys?api-version=2026-09-01" --query primaryKey -o tsv)"
   [[ -n "$REDIS_KEY_KRC" && "$REDIS_KEY_KRC" != null && -n "$REDIS_KEY_KRS" && "$REDIS_KEY_KRS" != null ]] || die 'Redis key lookup failed.'
 fi
-publish_status Applying 'Initializing Search, applying both applications, verifying Ready, fixed IPs and Traffic Manager.'
-step initialize-search bash "$ROOT_DIR/scripts/search-index.sh"
+publish_status Applying 'Preparing both regional applications and sample replication concurrently.'
 export CONFIRM="DEPLOY APP $SUBSCRIPTION_ID $PREFIX"
-step deploy-application bash "$ROOT_DIR/scripts/app-apply.sh"
+prepare_region() {
+  local key="$1"
+  export STATE_DIR="$STATE_DIR/regions/$key" AZURE_CONFIG_DIR="/work/azure-$key"
+  export APP_CONFIG_OUTPUT_DIR="$STATE_DIR/overlays"
+  mkdir -p "$STATE_DIR" "$AZURE_CONFIG_DIR"
+  cp -R "$ROOT_DIR/k8s/base" "$STATE_DIR/base"
+  step "initialize-search-$key" bash "$ROOT_DIR/scripts/search-index.sh" "$key"
+  step "deploy-application-$key" bash "$ROOT_DIR/scripts/app-apply.sh" "$key"
+}
+prepare_samples() {
+  export STATE_DIR="$STATE_DIR/samples" AZURE_CONFIG_DIR=/work/azure-samples
+  mkdir -p "$STATE_DIR" "$AZURE_CONFIG_DIR"
+  unset PG_PASSWORD REDIS_KEY_KRC REDIS_KEY_KRS CONFIRM
+  step upload-and-replicate bash "$ROOT_DIR/scripts/upload-sampledata.sh"
+}
+prepare_region primary &
+primary_pid=$!
+worker_pids+=("$primary_pid")
+prepare_region secondary &
+secondary_pid=$!
+worker_pids+=("$secondary_pid")
+prepare_samples &
+sample_pid=$!
+worker_pids+=("$sample_pid")
+CURRENT_STEP=deploy-application-primary
+wait "$primary_pid"
+CURRENT_STEP=deploy-application-secondary
+wait "$secondary_pid"
 unset PG_PASSWORD REDIS_KEY_KRC REDIS_KEY_KRS CONFIRM
 publish_status ApplicationReady 'Both regional apps Ready and Traffic Manager Online. Sample upload/replication may still be pending.'
-step upload-and-replicate bash "$ROOT_DIR/scripts/upload-sampledata.sh"
+CURRENT_STEP=upload-and-replicate
+wait "$sample_pid"
+worker_pids=()
 publish_status Complete 'Application ready; sample data skipped explicitly or primary upload and secondary replication/read verified.'
 aks_run primary 'kubectl -n drtest delete secret workshop-bootstrap-input --ignore-not-found=true'
