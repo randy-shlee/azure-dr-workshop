@@ -33,4 +33,4 @@ GitHub의 **Deploy to Azure** 버튼에서 Azure 포털로 이동하여 리소�
 기존 환경에 같은 prefix로 전체 템플릿을 재배포하지 않습니다. 배포 실패 시 오류와 현재 리소스 상태를
 확인한 뒤 진행하며, 보호 설정을 해제하거나 오류를 우회하지 않습니다.
 
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#view/Microsoft_Azure_CreateUIDef/CustomDeploymentBlade/uri/https%3A%2F%2Fraw.githubusercontent.com%2Frandy-shlee%2Fazure-dr-workshop%2Fv1.0.11-portal.5%2FPortal_DeployToAzure_lab%2Freleases%2Fv1.0.11-portal.5%2Fazuredeploy.json/uiFormDefinitionUri/https%3A%2F%2Fraw.githubusercontent.com%2Frandy-shlee%2Fazure-dr-workshop%2Fv1.0.11-portal.5%2FPortal_DeployToAzure_lab%2Freleases%2Fv1.0.11-portal.5%2FuiFormDefinition.json)
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#view/Microsoft_Azure_CreateUIDef/CustomDeploymentBlade/uri/https%3A%2F%2Fraw.githubusercontent.com%2Frandy-shlee%2Fazure-dr-workshop%2Fv1.0.11-portal.6%2FPortal_DeployToAzure_lab%2Freleases%2Fv1.0.11-portal.6%2Fazuredeploy.json/uiFormDefinitionUri/https%3A%2F%2Fraw.githubusercontent.com%2Frandy-shlee%2Fazure-dr-workshop%2Fv1.0.11-portal.6%2FPortal_DeployToAzure_lab%2Freleases%2Fv1.0.11-portal.6%2FuiFormDefinition.json)
