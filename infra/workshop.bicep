@@ -26,10 +26,14 @@ param useEphemeralOsDisk bool = false
 param kubernetesVersion string = ''
 @allowed(['Standard_D2ds_v5', 'Standard_D2ds_v4'])
 param postgresVmSize string = 'Standard_D2ds_v5'
+@description('PostgreSQL admin ID (visible): 1-63 letters/numbers; no pg_ prefix or reserved names. Default: pgadmin + UTC MMdd (for example pgadmin1030).')
+@minLength(1)
+@maxLength(63)
+param administratorLogin string = 'pgadmin${utcNow('MMdd')}'
 @secure()
-param administratorLogin string
-@secure()
+@description('PostgreSQL password: 12-128 characters (workshop minimum 12); at least 3 of uppercase, lowercase, digits, non-alphanumeric characters. Must not contain the admin ID. Enter a new password; never share it.')
 @minLength(12)
+@maxLength(128)
 param administratorPassword string
 @minValue(1)
 @maxValue(10)

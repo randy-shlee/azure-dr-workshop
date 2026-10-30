@@ -13,18 +13,20 @@
 | 입력 | 입력할 값 |
 |---|---|
 | 구독 | 환경 준비에서 확인한 승인 구독 |
-| 배포 위치 | 배포 메타데이터 위치. 예: Korea Central. 실제 자원은 KRC/KRS에 생성 |
+| 배포 위치 | Korea Central 사용. 새 입력 폼의 기본값이며 배포 기록 저장 위치만 결정합니다. 실제 자원은 KRC/KRS에 생성 |
 | prefix | 이 실습만의 새 값. 3~12자 소문자/숫자, 영문 시작. 예: `mydrws01` |
 | expiry | 사용할 종료 날짜. 자동 삭제되지 않음 |
 | allowedClientCidrs | 브라우저와 DR 터미널의 승인된 공인 IPv4 CIDR 배열 |
-| administratorLogin | 새 환경의 PG 관리자 이름 |
-| administratorPassword | 12자 이상 PG 정책을 만족하는 새 암호. 포털 보안 입력란에만 입력 |
+| administratorLogin | 새 환경의 PG 관리자 이름. 권장: `pgadmin` + 월일, 예: `pgadmin1030`. 영문·숫자 1~63자, 예약 이름 사용 금지 |
+| administratorPassword | 12~128자, 대문자·소문자·숫자·특수문자 중 3종 이상, 관리자 ID 포함 금지. 포털 보안 입력란에만 입력 |
 | AKS/PG 크기·Kubernetes 버전 | 양 리전 제공·할당량·비용을 확인한 승인 값 |
 | bootstrap·서비스·샘플·릴리스 값 | 템플릿의 고정 값 유지. 앱과 10 GB 샘플이 함께 배포됨 |
 
 CIDR의 배열 형식은 `["203.0.113.10/32","198.51.100.20/32"]`처럼 입력합니다.
 이 주소들은 문서용 예시이므로 실제 승인된 출구 주소로 바꿉니다. `0.0.0.0/0`는 사용하지 않습니다.
 암호를 명령행·채팅·공개 parameters 파일에 옮기지 않습니다.
+PostgreSQL 자체 암호 최소 길이는 8자이지만 이 워크숍은 12자 이상을 요구합니다.
+`admin`, `administrator`, `root`, `postgres` 같은 예약 ID와 `pg_`로 시작하는 ID는 사용하지 않습니다.
 
 ## 3. 만들기
 

@@ -13,7 +13,31 @@ foreach ($name in @('deployWorkshopBootstrap', 'deployEventHubs', 'deployRedis',
 Assert-Portal ($template.parameters.skipSampleData.allowedValues[0] -eq $false) 'Sample stage cannot silently be skipped.'
 Assert-Portal ($template.parameters.sampleDataSizeGB.allowedValues[0] -eq 10) 'Exact sample size must be pinned.'
 Assert-Portal ($template.parameters.administratorPassword.type -eq 'secureString') 'Password must be a secure parameter.'
-foreach ($name in @('prefix', 'allowedClientCidrs', 'administratorLogin', 'administratorPassword')) {
+$folder = Split-Path $TemplatePath -Parent
+$formPath = Join-Path $folder 'uiFormDefinition.json'
+$hasForm = Test-Path -LiteralPath $formPath
+$requiredInputs = @('prefix', 'allowedClientCidrs', 'administratorPassword')
+if ($hasForm) {
+    Assert-Portal ($template.parameters.administratorLogin.type -eq 'string') 'Admin ID must be visible, not secureString.'
+    Assert-Portal ($template.parameters.administratorLogin.defaultValue -ceq "[format('pgadmin{0}', utcNow('MMdd'))]") 'Admin ID must default to pgadmin plus UTC MMdd.'
+    Assert-Portal ($template.parameters.administratorLogin.minLength -eq 1 -and
+        $template.parameters.administratorLogin.maxLength -eq 63) 'Admin ID length must be 1-63.'
+    Assert-Portal ($template.parameters.administratorPassword.minLength -eq 12 -and
+        $template.parameters.administratorPassword.maxLength -eq 128) 'Password length must be 12-128.'
+    & node (Join-Path $PSScriptRoot 'test-portal-form.cjs') $formPath
+    Assert-Portal ($LASTEXITCODE -eq 0) 'Portal form credential checks failed.'
+    $form = Get-Content -Raw -LiteralPath $formPath | ConvertFrom-Json -AsHashtable
+    foreach ($name in $form.view.outputs.parameters.Keys) {
+        Assert-Portal ($template.parameters.ContainsKey($name)) "Unknown form parameter: $name"
+    }
+    foreach ($name in $template.parameters.Keys) {
+        Assert-Portal ($template.parameters[$name].ContainsKey('defaultValue') -or
+            $form.view.outputs.parameters.ContainsKey($name)) "Required parameter missing from form: $name"
+    }
+} else {
+    $requiredInputs += 'administratorLogin'
+}
+foreach ($name in $requiredInputs) {
     Assert-Portal (-not $template.parameters[$name].ContainsKey('defaultValue')) "Operator input must not be inferred: $name"
 }
 $module = @($template.resources | Where-Object { $_.properties.template.parameters.ContainsKey('deployAlerts') })
@@ -25,20 +49,30 @@ Assert-Portal ($start.Count -eq 1 -and $start[0].dependsOn.Count -ge 3) 'Bootstr
 $bootstrap = @($core.resources | Where-Object name -eq 'workshop-bootstrap')[0].properties.template
 $settings = @($bootstrap.resources | Where-Object type -eq 'Microsoft.Automation/automationAccounts/variables')
 Assert-Portal ($settings.Count -eq 1 -and $settings[0].properties.isEncrypted) 'Automation inputs must be encrypted.'
-$folder = Split-Path $TemplatePath -Parent
 $manifest = Get-Content -Raw -LiteralPath (Join-Path $folder 'portal-manifest.json') | ConvertFrom-Json
 Assert-Portal ((Get-FileHash $TemplatePath -Algorithm SHA256).Hash -ieq $manifest.templateSha256) 'Template bytes must match manifest.'
 $expectedRunbookUri = "https://raw.githubusercontent.com/$($manifest.repository)/$($manifest.releaseTag)/Portal_DeployToAzure_lab/releases/$($manifest.releaseTag)/workshop-bootstrap.ps1"
 Assert-Portal ($manifest.runbookUri -ceq $expectedRunbookUri) 'Automation requires the immutable raw runbook URL, not a redirected Release asset.'
 $publishedRunbookPath = Join-Path $folder 'workshop-bootstrap.ps1'
 Assert-Portal (Test-Path -LiteralPath $publishedRunbookPath) 'The tag-pinned raw runbook must be included in the release folder.'
-Assert-Portal ((Get-Content -Raw -LiteralPath (Join-Path $folder '.gitattributes')).Trim() -ceq 'workshop-bootstrap.ps1 -text') 'Git must preserve packaged runbook bytes without newline conversion.'
+$attributes = (Get-Content -Raw -LiteralPath (Join-Path $folder '.gitattributes')) -split '\r?\n'
+Assert-Portal ($attributes -ccontains 'workshop-bootstrap.ps1 -text') 'Git must preserve packaged runbook bytes without newline conversion.'
+if ($hasForm) {
+    Assert-Portal ($attributes -ccontains 'uiFormDefinition.json -text') 'Git must preserve pinned form bytes without newline conversion.'
+}
 Assert-Portal ((Get-FileHash $publishedRunbookPath -Algorithm SHA256).Hash -ieq $manifest.runbookSha256) 'Raw runbook bytes must match the pinned asset SHA256.'
 foreach ($pair in @(@('appImageArchiveUri', 'imageUri'), @('appImageArchiveSha256', 'imageSha256'),
         @('bootstrapRunbookUri', 'runbookUri'), @('bootstrapRunbookSha256', 'runbookSha256'))) {
     Assert-Portal ($template.parameters[$pair[0]].defaultValue -ceq $manifest.($pair[1])) 'Asset pin differs from manifest.'
 }
 $button = Get-Content -Raw -LiteralPath (Join-Path $folder 'README.md')
+if ($hasForm) {
+    $expectedFormUri = "https://raw.githubusercontent.com/$($manifest.repository)/$($manifest.releaseTag)/Portal_DeployToAzure_lab/releases/$($manifest.releaseTag)/uiFormDefinition.json"
+    Assert-Portal ($manifest.uiFormDefinitionUri -ceq $expectedFormUri) 'Form must use the same immutable tag as the template.'
+    Assert-Portal ((Get-FileHash $formPath -Algorithm SHA256).Hash -ieq $manifest.uiFormDefinitionSha256) 'Form bytes must match manifest.'
+    Assert-Portal ($button.Contains('/uiFormDefinitionUri/' + [Uri]::EscapeDataString($expectedFormUri))) 'Button must load the validated form.'
+    Assert-Portal ($button.Contains('#view/Microsoft_Azure_CreateUIDef/CustomDeploymentBlade/uri/')) 'Custom deployment form blade is required.'
+}
 Assert-Portal ($button.Contains([Uri]::EscapeDataString($manifest.templateUri))) 'Button must encode the exact raw tag URL.'
 Assert-Portal ($manifest.templateUri -like "https://raw.githubusercontent.com/*/$($manifest.releaseTag)/Portal_DeployToAzure_lab/releases/$($manifest.releaseTag)/azuredeploy.json") 'Button must reference the new folder on an immutable tag.'
 if ($SourceReleasePath) {

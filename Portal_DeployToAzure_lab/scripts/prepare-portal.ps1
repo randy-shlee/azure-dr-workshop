@@ -35,7 +35,7 @@ $destination = Join-Path $lab "releases/$ReleaseTag"
 if (Test-Path -LiteralPath $destination) { throw 'Destination exists. Use a new portal tag; never overwrite a release.' }
 $null = Get-Command bicep -ErrorAction Stop
 $null = New-Item -ItemType Directory -Path $destination
-[IO.File]::WriteAllText((Join-Path $destination '.gitattributes'), "workshop-bootstrap.ps1 -text`n", [Text.UTF8Encoding]::new($false))
+[IO.File]::WriteAllText((Join-Path $destination '.gitattributes'), "workshop-bootstrap.ps1 -text`nuiFormDefinition.json -text`n", [Text.UTF8Encoding]::new($false))
 Copy-Item -LiteralPath (Join-Path $source 'workshop-bootstrap.ps1') -Destination (Join-Path $destination 'workshop-bootstrap.ps1')
 $templatePath = Join-Path $destination 'azuredeploy.json'
 & bicep build (Join-Path $root 'infra/workshop.bicep') --no-restore --outfile $templatePath
@@ -61,7 +61,6 @@ foreach ($key in $fixed.Keys) {
 $null = $template.parameters.prefix.Remove('defaultValue')
 $null = $template.parameters.allowedClientCidrs.Remove('defaultValue')
 $template.parameters.allowedClientCidrs.minLength = 1
-$null = $template.parameters.administratorLogin.Remove('defaultValue')
 $null = $template.parameters.administratorPassword.Remove('defaultValue')
 $template.metadata['portalLab'] = @{
     sourceReleaseTag = $manifest.releaseTag
@@ -72,7 +71,10 @@ $template.metadata['portalLab'] = @{
 & (Join-Path $root 'infra/tests/validate-template.ps1') -TemplatePath $templatePath
 if (-not $?) { throw 'Shared template invariants failed.' }
 $templateUri = "https://raw.githubusercontent.com/$Repository/$ReleaseTag/Portal_DeployToAzure_lab/releases/$ReleaseTag/azuredeploy.json"
-$button = "[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/$([Uri]::EscapeDataString($templateUri)))"
+$formPath = Join-Path $destination 'uiFormDefinition.json'
+Copy-Item -LiteralPath (Join-Path $lab 'uiFormDefinition.json') -Destination $formPath
+$formUri = "$rawReleaseUri/uiFormDefinition.json"
+$button = "[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#view/Microsoft_Azure_CreateUIDef/CustomDeploymentBlade/uri/$([Uri]::EscapeDataString($templateUri))/uiFormDefinitionUri/$([Uri]::EscapeDataString($formUri)))"
 [IO.File]::WriteAllText((Join-Path $destination 'README.md'), @"
 # Portal Deployment: $ReleaseTag
 
@@ -83,10 +85,26 @@ the asynchronous app bootstrap; verify app and sample completion separately.
 $button
 
 Source assets: $($manifest.releaseTag). See ../../README.md for the lab and publication gates.
+
+## Credential form
+
+- Admin ID is visible and defaults to pgadmin + the current UTC MMdd (for example pgadmin1030).
+- Password remains hidden, requires confirmation, and has no default.
+- Password rules are shown above the input: 12-128 characters; at least 3 of uppercase,
+  lowercase, digits and symbols; no admin ID within the password (case-insensitive).
+- ID length, letters/digits and reserved names are checked before submission.
+- Approved public CIDRs are comma separated without spaces or JSON brackets.
+- These input checks do not prove Azure policy, quota, permissions or deployment success.
+
+Before promoting the lab button, publish and verify both immutable JSON URLs and the
+unchanged image/runbook assets. Preview the form in Azure Portal using synthetic values
+only, including blank inputs, reserved IDs, weak passwords and mismatched confirmation.
+Do not submit a deployment just to check the form. Never automate a filled secret form.
 "@.Replace("`r`n", "`n"), [Text.UTF8Encoding]::new($false))
 @{
     repository = $Repository; releaseTag = $ReleaseTag; sourceReleaseTag = $manifest.releaseTag
     templateUri = $templateUri; templateSha256 = (Get-FileHash $templatePath -Algorithm SHA256).Hash.ToLowerInvariant()
+    uiFormDefinitionUri = $formUri; uiFormDefinitionSha256 = (Get-FileHash $formPath -Algorithm SHA256).Hash.ToLowerInvariant()
     imageUri = $fixed.appImageArchiveUri; imageSha256 = $fixed.appImageArchiveSha256
     runbookUri = $fixed.bootstrapRunbookUri; runbookSha256 = $fixed.bootstrapRunbookSha256
     publicationStatus = 'LocalOnly'; cloudValidation = 'NotRun'
