@@ -44,6 +44,7 @@ ARM 배포 성공, 앱 준비 완료, 샘플 복제 완료는 별도 상태입�
 ## 실행 전 확인
 
 - 승인된 구독·새 prefix·양 리전 용량·배포 및 RBAC 권한을 준비합니다.
+- **필수:** 포털 배포 버튼을 누르기 전에 [Resource Provider 사전 등록](Portal_DeployToAzure_lab/README.md#필수-사전-단계-resource-provider-등록)을 실행하고 `PROVIDERS_READY`를 확인합니다.
 - 앱 브라우저와 DR 실행 터미널의 출구 IP를 허용 목록에 포함합니다.
 - 이 앱은 IP 제한 HTTP 진단 도구이며 사용자 인증이 없는 실습용입니다. 운영 데이터는 사용하지 않습니다.
 - 암호·키·토큰·kubeconfig·개인 키·로컬 배포 상태는 GitHub에 올리지 않습니다.
