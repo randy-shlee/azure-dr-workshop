@@ -515,16 +515,27 @@ pg_switchover primary
     def test_dr_data_check_requires_write_and_matching_primary_readback(self):
         command = """
 source scripts/common.sh
-cfg() { if [[ "$1" == ".secondary.region" ]]; then echo krs; else echo example.test; fi; }
-enabled() { return 1; }
+cfg() {
+    case "$1" in
+        .primary.region) echo krc;;
+        .secondary.region) echo krs;;
+        .primary.publicIp.address) echo 192.0.2.10;;
+        .secondary.publicIp.address) echo 192.0.2.20;;
+        .primary.appGateway.address) echo 192.0.2.30;;
+        .secondary.appGateway.address) echo 192.0.2.40;;
+        *) echo weighted.example.test;;
+    esac
+}
+enabled() { [[ "$1" == ".features.deployAppGateway" && "$APP_GATEWAY" == true ]]; }
 curl() {
+    [[ "$*" == *"http://$EXPECTED_HOST/api/"* ]] || return 1
   case "$*" in
-    *"/api/info") echo '{"region":"krs","storage_read_mode":"primary"}';;
+        *"/api/info") printf '{"region":"%s","storage_read_mode":"primary"}' "$APP_REGION";;
     *"/api/write") echo "$WRITE_DOC";;
     *"/api/read") echo "$READ_DOC";;
   esac
 }
-dr_verify_data secondary
+dr_verify_data "$TARGET_REGION"
 """
         write = {"record": {"id": "test-id"}, "services": {"postgres": {"ok": True}, "storage_primary": {"ok": True}}}
         read = {"services": {
@@ -537,10 +548,21 @@ dr_verify_data secondary
         mismatch["services"]["postgres"]["data"]["id"] = "old-id"
         bad_write = copy.deepcopy(write)
         bad_write["services"]["storage_primary"]["ok"] = False
-        for written, readback, success in ((write, read, True), (write, bad_read, False),
-                                            (write, mismatch, False), (bad_write, read, False)):
-            proc = shell(command, {"WRITE_DOC": json.dumps(written), "READ_DOC": json.dumps(readback)})
-            self.assertEqual(proc.returncode == 0, success, proc.stderr)
+        for key, region, public_ip, gateway_ip in (
+            ("primary", "krc", "192.0.2.10", "192.0.2.30"),
+            ("secondary", "krs", "192.0.2.20", "192.0.2.40"),
+        ):
+            for gateway in (False, True):
+                for written, readback, success in ((write, read, True), (write, bad_read, False),
+                                                    (write, mismatch, False), (bad_write, read, False)):
+                    with self.subTest(key=key, gateway=gateway, success=success):
+                        proc = shell(command, {
+                            "WRITE_DOC": json.dumps(written), "READ_DOC": json.dumps(readback),
+                            "TARGET_REGION": key, "APP_REGION": region,
+                            "APP_GATEWAY": str(gateway).lower(),
+                            "EXPECTED_HOST": gateway_ip if gateway else public_ip,
+                        })
+                        self.assertEqual(proc.returncode == 0, success, proc.stderr)
 
     def test_job_failure_is_not_treated_as_success(self):
         proc = shell("""

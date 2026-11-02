@@ -13,7 +13,7 @@ resource tm 'Microsoft.Network/trafficManagerProfiles@2026-09-01' = {
   tags: tags
   properties: {
     profileStatus: 'Enabled'
-    trafficRoutingMethod: 'Priority'
+    trafficRoutingMethod: 'Weighted'
     dnsConfig: { relativeName: '${prefix}-dr', ttl: fastFailover ? 0 : 60 }
     // Fast probing is billable at a higher rate; off for normal test operation.
     monitorConfig: {
@@ -31,7 +31,7 @@ resource tm 'Microsoft.Network/trafficManagerProfiles@2026-09-01' = {
         properties: {
           targetResourceId: primaryPublicIpId
           endpointStatus: 'Enabled'
-          priority: 1
+          weight: 90
         }
       }
       {
@@ -40,7 +40,7 @@ resource tm 'Microsoft.Network/trafficManagerProfiles@2026-09-01' = {
         properties: {
           targetResourceId: secondaryPublicIpId
           endpointStatus: 'Enabled'
-          priority: 2
+          weight: 10
         }
       }
     ]

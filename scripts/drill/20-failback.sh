@@ -11,7 +11,6 @@ if enabled '.features.deployEventHubs' && enabled '.features.enableEventHubsGeoR
 fi
 step enable-krc tm_endpoint primary Enabled
 step dns-krc tm_dns_wait primary
-# Keep the secondary endpoint enabled as the priority-2 standby.
 step enable-krs tm_endpoint secondary Enabled
 step health-krc curl --fail --silent --show-error --max-time 30 "http://$(cfg '.trafficManager.fqdn')${HEALTH_PATH:-/healthz}"
 step data-krc dr_verify_data primary

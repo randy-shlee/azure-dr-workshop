@@ -31,7 +31,7 @@ Korea Central(KRC)·Korea South(KRS) 간 리소스와 앱을 배포하고, 데�
 
 | 구성 | 실습에서 확인할 차이 |
 |---|---|
-| 양 AKS 앱·Traffic Manager | 앱 응답 리전과 backend 역할을 구분. Priority 라우팅 사용 |
+| 양 AKS 앱·Traffic Manager | 앱 응답 리전과 backend 역할을 구분. 현재 템플릿은 Weighted KRC 90 / KRS 10 DNS 분산 |
 | Storage RA-GRS | 단일 계정, 복제·보조 읽기 확인, planned 계정 전환 |
 | PostgreSQL | primary/geo-replica의 planned switchover와 writer alias |
 | Event Hubs Standard | metadata-only Geo-DR. 이벤트 payload 복제나 자동 failback 아님 |

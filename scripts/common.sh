@@ -227,7 +227,8 @@ pg_switchover() {
 }
 dr_verify_data() {
   local key="$1" url info written readback id
-  url="http://$(cfg '.trafficManager.fqdn')"
+  if enabled '.features.deployAppGateway'; then url="http://$(cfg ".$key.appGateway.address")"
+  else url="http://$(cfg ".$key.publicIp.address")"; fi
   info="$(curl --fail --silent --show-error --max-time 40 "$url/api/info")"
   jq -e --arg region "$(cfg ".$key.region")" '.region == $region and .storage_read_mode == "primary"' <<<"$info" >/dev/null ||
     die "Application is not serving $key with the stable Storage primary endpoint."

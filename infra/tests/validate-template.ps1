@@ -43,6 +43,17 @@ Assert-True ($template.parameters.enableEventHubsGeoRecovery.defaultValue -eq $t
 Assert-True (-not $template.parameters.ContainsKey('enableEventHubsGeoReplication') -and -not $template.parameters.ContainsKey('maxReplicationLagSeconds')) 'Premium data replication controls must be removed.'
 Assert-True ($template.parameters.replicationLagAlertSeconds.defaultValue -eq 300) 'PG/Storage alert lag threshold must default to 300 seconds.'
 Assert-True ($template.outputs.config.type -eq 'object') 'Scripts require the config object output.'
+$trafficProfiles = @($script:resources | Where-Object type -eq 'Microsoft.Network/trafficManagerProfiles')
+Assert-True ($trafficProfiles.Count -eq 1) 'Expected exactly one Traffic Manager profile.'
+Assert-True ($trafficProfiles[0].properties.trafficRoutingMethod -eq 'Weighted') 'Traffic Manager must use Weighted routing.'
+$trafficEndpoints = @($trafficProfiles[0].properties.endpoints)
+Assert-True ($trafficEndpoints.Count -eq 2) 'Traffic Manager requires exactly two regional endpoints.'
+foreach ($region in @('krc', 'krs')) {
+    $endpoint = @($trafficEndpoints | Where-Object name -eq $region)
+    $expectedWeight = if ($region -eq 'krc') { 90 } else { 10 }
+    Assert-True ($endpoint.Count -eq 1 -and $endpoint[0].properties.weight -eq $expectedWeight -and
+        $endpoint[0].properties.endpointStatus -eq 'Enabled') "Traffic Manager $region must be enabled with weight $expectedWeight."
+}
 $eventNamespaces = @($script:resources | Where-Object type -eq 'Microsoft.EventHub/namespaces')
 $eventAliases = @($script:resources | Where-Object type -eq 'Microsoft.EventHub/namespaces/disasterRecoveryConfigs')
 Assert-True ($eventNamespaces.Count -eq 2) 'Standard Geo-DR requires two independent namespace declarations.'

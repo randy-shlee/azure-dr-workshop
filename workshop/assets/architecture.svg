@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1580" viewBox="0 0 1600 1580" role="img" aria-labelledby="title description">
   <title id="title">Azure DR workshop: deployed Korea Central / Korea South architecture</title>
-  <desc id="description">Verified v1.0.7 baseline. Priority DNS, two private AKS clusters, one RA-GRS account, PostgreSQL primary and geo-replica, metadata-only Event Hubs, active-geo Redis, independent Search, one private ACR, regional DNS and 17 private endpoints. DR role transitions have not been executed.</desc>
+  <desc id="description">Current template architecture. Weighted DNS KRC 90 / KRS 10, two private AKS clusters, one RA-GRS account, PostgreSQL primary and geo-replica, metadata-only Event Hubs, active-geo Redis, independent Search, one private ACR, regional DNS and 17 private endpoints.</desc>
   <defs>
     <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto-start-reverse"><path d="M0 0 L8 4 L0 8 Z" fill="context-stroke"/></marker>
     <style>
@@ -19,25 +19,25 @@
   </defs>
   <rect width="1600" height="1580" fill="#f3f6fb"/>
   <text x="40" y="49" class="title">Azure DR workshop | Korea Central + Korea South</text>
-  <text x="40" y="78" class="body">Verified deployed baseline: drws1028c / v1.0.7 / 2026-10-28. Deployment and data checks passed; DR transitions not yet executed.</text>
+  <text x="40" y="78" class="body">Current template: weighted DNS KRC 90 / KRS 10. Application routing and backend primary/replica roles are separate.</text>
 
   <rect x="40" y="105" width="340" height="135" rx="14" class="card"/>
   <text x="62" y="138" class="heading">Approved operator / browser</text>
-  <text x="62" y="168" class="body">Local package: one deployment command</text>
+  <text x="62" y="168" class="body">Deploy to Azure / local package</text>
   <text x="62" y="195" class="small">ARM control plane + approved client CIDR</text>
-  <text x="62" y="219" class="small">No public release or local Docker Desktop</text>
+  <text x="62" y="219" class="small">No local Docker Desktop required</text>
   <path d="M380 170 H418" class="dns"/>
   <rect x="420" y="105" width="760" height="135" rx="14" fill="#eaf3ff" stroke="#92b9e8"/>
   <text x="444" y="133" class="small">GLOBAL RESOURCE GROUP</text>
   <image href="data:image/svg+xml;base64,PHN2ZyBpZD0iYTE4YjkwNWQtOTNjNi00ZmVlLWJhNWItNjk5ZTI1NjJlMDBmIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxOCIgaGVpZ2h0PSIxOCIgdmlld0JveD0iMCAwIDE4IDE4Ij48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9ImIwMmM3YTIwLTAxZGEtNGRhZi05MWI5LWUxMTUyODQxOGRmYyIgeDE9IjkiIHkxPSIxNy41IiB4Mj0iOSIgeTI9IjAuNSIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPjxzdG9wIG9mZnNldD0iMC4xNiIgc3RvcC1jb2xvcj0iIzZmNGJiMiIgLz48c3RvcCBvZmZzZXQ9IjAuMzIiIHN0b3AtY29sb3I9IiM3NDUwYjUiIC8+PHN0b3Agb2Zmc2V0PSIwLjUxIiBzdG9wLWNvbG9yPSIjODI1ZGJmIiAvPjxzdG9wIG9mZnNldD0iMC43MiIgc3RvcC1jb2xvcj0iIzlhNzJjZSIgLz48c3RvcCBvZmZzZXQ9IjAuOTQiIHN0b3AtY29sb3I9IiNiYjkwZTQiIC8+PHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjYzY5YWViIiAvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjx0aXRsZT5JY29uLW5ldHdvcmtpbmctNjU8L3RpdGxlPjxwYXRoIGQ9Ik0xMi4yOS41SDUuNzFhLjU2LjU2LDAsMCwwLS40LjE3TC42Nyw1LjMxYS41Ni41NiwwLDAsMC0uMTcuNHY2LjU4YS41Ni41NiwwLDAsMCwuMTcuNGw0LjY0LDQuNjRhLjU2LjU2LDAsMCwwLC40LjE3aDYuNThhLjU2LjU2LDAsMCwwLC40LS4xN2w0LjY0LTQuNjRhLjU2LjU2LDAsMCwwLC4xNy0uNFY1LjcxYS41Ni41NiwwLDAsMC0uMTctLjRMMTIuNjkuNjdBLjU2LjU2LDAsMCwwLDEyLjI5LjVaIiBmaWxsPSJ1cmwoI2IwMmM3YTIwLTAxZGEtNGRhZi05MWI5LWUxMTUyODQxOGRmYykiIC8+PHBhdGggZD0iTTYsNy42NGwtLjA3LjA3LTEsMWEuMTQuMTQsMCwwLDAsLjEuMjNoMy44YS4xNC4xNCwwLDAsMCwuMTQtLjE0VjUuMDVBLjE0LjE0LDAsMCwwLDguNjQsNWwtMSwxLS4wNy4wN2EuMTUuMTUsMCwwLDEtLjIsMEw0LjgsMy41NCwzLjQzLDQuOTIsNiw3LjQ0QS4xNS4xNSwwLDAsMSw2LDcuNjRaIiBmaWxsPSIjZjJmMmYyIiAvPjxwYXRoIGQ9Ik0xNi4xOCw1LjkxLDEyLjA5LDEuODJhLjI4LjI4LDAsMCwwLS4yLS4wOEg2LjExYS4yOC4yOCwwLDAsMC0uMi4wOEwxLjgyLDUuOTFhLjI4LjI4LDAsMCwwLS4wOC4ydjUuNzhhLjMuMywwLDAsMCwuMDguMmw0LjA5LDQuMDlhLjI4LjI4LDAsMCwwLC4yLjA4aDUuNzhhLjI4LjI4LDAsMCwwLC4yLS4wOGw0LjA5LTQuMDlhLjMuMywwLDAsMCwuMDgtLjJWNi4xMUEuMjguMjgsMCwwLDAsMTYuMTgsNS45MVptLS4zNiw1LjQ1TDEyLjY3LDguMjFsLjc2LS43N2EuMTYuMTYsMCwwLDAsMC0uMjQuMTYuMTYsMCwwLDAtLjExLDBsLTIuNzEtLjA3YS4xNy4xNywwLDAsMC0uMTcuMTZoMEwxMC41MSwxMGEuMTYuMTYsMCwwLDAsLjE3LjE2aDBhLjEzLjEzLDAsMCwwLC4xMiwwbC44NS0uODRMMTUsMTIuNjJsLTIuNTQsMi41NEw5LDExLjcxLDkuOCwxMWEuMTYuMTYsMCwwLDAsMC0uMjQuMTYuMTYsMCwwLDAtLjExLS4wNUw3LDEwLjU5YS4xNy4xNywwLDAsMC0uMTcuMTZoMGwuMDcsMi43MWEuMTYuMTYsMCwwLDAsLjE3LjE2aDBhLjE3LjE3LDAsMCwwLC4xMi0uMDVMOCwxMi43NGwzLjA4LDMuMDhINi4xN2wtNC00VjYuMTdMMy40Myw0LjkyLDQuOCwzLjU0LDYuMTcsMi4xN2g1LjY2bDQsNFoiIGZpbGw9IiNmMmYyZjIiIC8+PC9zdmc+" x="445" y="151" width="58" height="58"/>
-  <text x="522" y="169" class="heading">Azure Traffic Manager | Priority</text>
-  <text x="522" y="196" class="body">KRC priority 1 / KRS priority 2 | both Enabled + Online</text>
+  <text x="522" y="169" class="heading">Azure Traffic Manager | Weighted</text>
+  <text x="522" y="196" class="body">KRC weight 90 / KRS weight 10 | both Enabled + Online</text>
   <text x="522" y="220" class="small">DNS guidance only. The browser sends HTTP directly to the regional public IP.</text>
   <rect x="1220" y="105" width="340" height="135" rx="14" class="card"/>
   <text x="1242" y="138" class="heading">Network boundary</text>
   <text x="1242" y="168" class="body">App HTTP 80: approved IPs + TM probe</text>
   <text x="1242" y="195" class="small">PaaS / ACR data paths remain private</text>
-  <text x="1242" y="219" class="small">Not a 99:1 active-active routing design</text>
+  <text x="1242" y="219" class="small">DNS weights are not HTTP request ratios</text>
   <path d="M800 240 V275 H390 V361" class="dns"/>
   <path d="M800 275 H1210 V361" class="dns"/>
   <text x="800" y="298" class="label">DASHED BLUE = DNS ANSWER, NOT AN HTTP PROXY PATH</text>
@@ -159,9 +159,9 @@
   <text x="920" y="1255" class="body">Shared sample identity trusts both AKS OIDC issuers</text>
 
   <rect x="40" y="1335" width="1520" height="100" rx="14" fill="#e7f2ef" stroke="#8cbcac"/>
-  <text x="62" y="1367" class="heading">One-command local deployment - no public release dependency</text>
-  <text x="62" y="1395" class="body">SHA verification - infrastructure - temporary mTLS builder - private image push - both apps - CLI 10 GB samples - replication / reads - smoke</text>
-  <text x="62" y="1419" class="small">Temporary builder, port 2376 rule, added push grant and certificates are REMOVED after transfer. No cloud Automation in this deployed path.</text>
+  <text x="62" y="1367" class="heading">Deploy to Azure: infrastructure + asynchronous application bootstrap</text>
+  <text x="62" y="1395" class="body">Pinned image / runbook - infrastructure - private image push - both apps - exact 10 GB samples - replication / reads - readiness</text>
+  <text x="62" y="1419" class="small">ARM deployment success is not application readiness. The local package remains an alternative deployment path.</text>
   <rect x="40" y="1450" width="1520" height="87" rx="14" fill="#fff3df" stroke="#d7b678"/>
   <text x="62" y="1481" class="heading">Planned DR is a separate approved exercise - NOT part of deployment validation</text>
   <text x="62" y="1508" class="body">To KRS: Storage - EH - PG - TM. Back to KRC app: Storage - PG - EH active check - TM. EH stays in KRS; no former-primary failback.</text>

@@ -19,8 +19,9 @@ Storage/PG/EH의 서로 다른 DR 방식을 전환 스크립트로 실습합니�
 
 [큰 원본 SVG 열기](assets/architecture.svg) · [아이콘 출처와 이용 조건](assets/azure-icons/NOTICE.md)
 
-그림은 **2026-10-28 `drws1028c`의 배포 성공 baseline**입니다. 리전별 RG의 ARM
-리소스 목록도 재조회했습니다. 선은 논리 관계이며 모든 PE/NIC/NSG rule을 하나씩
+그림은 현재 템플릿의 **Weighted KRC 90/KRS 10** 구성을 보여줍니다.
+아래 표는 **2026-10-28 `drws1028c`의 배포 성공 baseline**이며 당시에는 Priority를 사용했습니다.
+선은 논리 관계이며 모든 PE/NIC/NSG rule을 하나씩
 그린 물리 배선도가 아닙니다. 제품 아이콘의 색상·형태·비율은 변경하지 않았습니다.
 
 | 범위 | 실제 배포된 핵심 리소스 | 읽는 방법 |

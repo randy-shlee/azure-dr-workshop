@@ -38,13 +38,13 @@
 |---|---|
 | Automation account → Jobs | 이번 배포 출력의 job ID와 일치하고 **Completed**, 예외 없음 |
 | KRC AKS → Workloads | `workshop-bootstrap` Job 성공, 상태 ConfigMap `workshop-bootstrap-status`의 `phase=Complete` |
-| 양 지역 앱 | 모두 Ready/접속 가능, 서비스별 정상. TM 앱은 KRC 응답 |
+| 양 지역 앱 | 모두 Ready/접속 가능, 서비스별 정상. TM 앱은 KRC 또는 KRS 응답 |
 | 앱 → 샘플 데이터 확인 | 양쪽 large 8 + small 2,000, payload **10,000,000,000 bytes**, 보조 읽기 성공, **복제 완료** |
 | Storage → Redundancy | **RA-GRS**, Primary **Korea Central**, Secondary **Korea South**, 양 지역 Available, 동기화 완료 및 Planned 가능 |
 | Storage Last Sync Time | 최종 manifest 종료 시각 이상. 앱 재개를 실행했다면 새 manifest 기준으로 다시 확인 |
 | PostgreSQL → Replication | KRC primary/KRS replica 모두 Ready, replica lag 확인, virtual writer=KRC 및 reader=KRS |
 | Event Hubs → Geo-recovery | 기존 alias, KRC primary/KRS secondary, pairing 동기화 완료. 양 namespace의 앱 RBAC·사설 접근 준비 |
-| TM → Endpoints | `krc` Priority 1, `krs` Priority 2, 둘 다 Enabled/Online |
+| TM → Configuration / Endpoints | Weighted, `krc` Weight 90, `krs` Weight 10, 둘 다 Enabled/Online |
 
 AKS의 포털 Kubernetes 화면은 사설 API에 대한 네트워크·RBAC 권한이 있어야 합니다.
 열리지 않으면 API server를 공개하지 않습니다. [준비 단계](02-ready.md)의 읽기 전용 AKS Run command로
@@ -108,7 +108,7 @@ Premium의 두 복제 방식은 [Event Hubs Premium 비교](#5-event-hubs-premiu
 
 1. profile → **Settings → Endpoints**에서 `krs`를 선택합니다.
 2. **Status: Enabled → Save**, Online 확인 후 `krc`를 **Disabled → Save**로 변경합니다.
-3. profile 설정은 Priority routing을 유지하고 endpoint priority는 KRC 1/KRS 2 그대로 둡니다.
+3. profile은 **Weighted**, 가중치는 **KRC 90/KRS 10** 그대로 유지합니다. KRC Disabled 동안에는 정상인 KRS만 새 DNS 응답을 받습니다.
 4. DNS TTL과 클라이언트 캐시·기존 연결의 영향을 기다린 뒤 **TM URL**에서 응답 리전 **KRS**를 확인합니다.
    새 창에서도 대조하되 새 창이 OS DNS 캐시를 반드시 비운다고 가정하지 않습니다.
 
@@ -164,12 +164,12 @@ AKS 노드나 앱을 중지·재배포하지 않습니다. 앱의 오류/partial
 ### 4. Traffic Manager와 probe 설정 확인
 
 1. backend KRC 복귀가 끝난 뒤 **Endpoints → krc → Enabled → Save**, Online을 확인합니다.
-2. **krs도 Enabled**로 유지/변경합니다. KRC Priority 1/KRS Priority 2이며 최종 양 endpoint Online이어야 합니다.
-3. TM URL에서 응답 KRC와 일반 primary Storage 읽기를 확인합니다. DNS/연결 캐시가 남으면 완료로 기록하지 않습니다.
+2. **krs도 Enabled**로 유지/변경합니다. **Weighted, KRC Weight 90/KRS Weight 10**, 최종 양 endpoint Online으로 복원합니다.
+3. KRC 직접 앱 주소에서 KRC 응답과 일반 primary Storage 읽기를 확인합니다. TM URL은 다시 양 지역 응답이 가능하며, KRS 응답만으로 원복 실패라고 판단하지 않습니다.
 4. **Configuration**과 각 endpoint의 health checks를 처음 기록한 값과 비교합니다.
    이 포털판은 fast/probe 설정을 변경하지 않으므로 원래 값이면 별도 복구 명령이 필요하지 않습니다.
    다르면 승인된 원래 값으로 복구하고 Save 후 양 Online을 다시 확인합니다. 원래 값이 없으면 추측하지 않습니다.
-5. TM 앱에서 새 UUID로 **쓰기 → 읽기**, Blob/PG 일치와 Redis/Search/EH 접근을 다시 확인합니다.
+5. KRC 직접 앱 주소에서 새 UUID로 **쓰기 → 읽기**, Blob/PG 일치와 Redis/Search/EH 접근을 다시 확인합니다. TM 주소에서도 서비스 접근을 확인합니다.
 
 ## 5. Event Hubs Premium
 

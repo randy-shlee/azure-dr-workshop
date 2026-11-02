@@ -8,7 +8,8 @@ GitHub의 **Deploy to Azure** 버튼에서 Azure 포털로 이동하여 리소�
 
 ![Korea Central과 Korea South의 DR 실습 아키텍처](../workshop/assets/architecture.svg)
 
-평시에는 Traffic Manager가 KRC 앱을 우선 안내하고, DR 시 데이터 서비스 전환 후 KRS 앱으로 안내합니다.
+평시에는 Traffic Manager가 **Weighted 라우팅으로 KRC 90 / KRS 10** 비율로 DNS 응답을 선택합니다.
+DR 시 데이터 서비스 전환 후 KRC endpoint를 비활성화하여 KRS 앱으로만 안내합니다.
 [서비스 구성과 전환 흐름 설명](workshop/README.md#워크숍-아키텍처)을 먼저 확인합니다.
 
 ## 시작하기
